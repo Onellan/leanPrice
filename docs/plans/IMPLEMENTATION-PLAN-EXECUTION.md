@@ -1,5 +1,5 @@
 # leanPrice — Technical Plan Execution Plan
-**Version:** 1.2 | **Status:** implementation tracker; local work is progressing, release certification is blocked on external evidence | **Updated:** 2026-10-19
+**Version:** 1.3 | **Status:** implementation tracker; local work is progressing, release certification is blocked on external evidence | **Updated:** 2026-10-19
 **Authority:** [PRD](../product/PRD.md), [UX](../product/UX-SPEC.md), [Acceptance](../product/ACCEPTANCE.md), [Technical implementation plan](IMPLEMENTATION-PLAN.md), [Architecture](../technical/ARCHITECTURE.md), [Data contracts](../technical/DATA-CONTRACTS.md), [ADRs](../technical/ADRS.md), [Validation](../technical/VALIDATION.md).
 
 ## 1. Objective and completion rule
@@ -18,7 +18,7 @@ A slice can be **implemented** with local code and deterministic evidence, but a
 ## 3. Evidence and authority rules
 1. Load only the skills triggered by a slice. Source acquisition requires source feasibility and safe HTTP; domain changes require identity/pricing/domain guidance; SQLite/outbox work requires the integrity skill; UI work requires frontend design; release claims require Pi certification and local test-execution guidance.
 2. Evidence states are `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`. A passing unit test proves only its tested contract. Workstation containers do not certify ARM64 hardware or total Pi memory.
-3. Each batch record lists authority IDs, files/interfaces, negative cases, exact commands actually run, result, implementer/reviewer boundary, and remaining risk. Candidate code SHA for this checkpoint: `5b4b17ec26d0e42a7ce4158b68ba48c476ce2274`. Later documentation/evidence commits must not be mistaken for the code candidate.
+3. Each batch record lists authority IDs, files/interfaces, negative cases, exact commands actually run, result, implementer/reviewer boundary, and remaining risk. Candidate code SHA for this checkpoint: `eece378259fe7e0f3f5cf0be8a9289ea2f7d090c`. Later documentation/evidence commits must not be mistaken for the code candidate.
 4. Independent review and acceptance evidence must come from people other than the implementer. This session has no delegated reviewer; it records implementer checks honestly and leaves independent gates open.
 5. Never change source approval, project license, deployment, household-account scope or remote-renderer policy by inference.
 
@@ -34,7 +34,7 @@ A slice can be **implemented** with local code and deterministic evidence, but a
 |---|---|---|---|
 | B00 feasibility | Partial; independent sign-off open | Requirement map and five dated candidate assessments | No approved source, no target Pi baseline, no independent product/source-policy sign-off. Preserve stop gates. |
 | B01 foundation | Implemented; local gates pass | Go/Chi lifecycle, SSR/HTMX, Tailwind build, ARM64 image/Compose, quality scripts | Target-Pi run and rendered browser/accessibility review remain open. |
-| B02 SQLite/recovery | Implemented; local tests and backup drill pass | Versioned schema, bounded stores, transactions, WAL backup/restore and recovery | Independent integrity review, synthetic footprint/performance study and Pi execution remain open. |
+| B02 SQLite/recovery | Implemented locally; workstation synthetic benchmark passes | Versioned schema, bounded stores, transactions, WAL backup/restore and recovery; 100-product/500-listing/4,000-observation benchmark | Independent integrity review and target Pi 500-product/2,500-listing footprint, performance and recovery execution remain open. |
 | B03 authentication/security | Implemented; local tests pass | Setup/login/session/password reset, CSRF/CSP, trusted proxy handling, SSRF-safe fetch and separate webhook policy | Independent security review and full adversarial release review remain open. |
 | B04 pricing/extraction/matching | Implemented for deterministic contracts; approved-source flow absent | Cents/rational units, offer eligibility, bounded parser/provenance, identity decisions and refresh service | Approved real source fixtures and independent parser/domain review remain blocked. |
 | B05 jobs/source governance | Implemented locally; operational certification open | Registry default-off, durable leases/queue, scheduler and memory governor | Source-enabled long run, load/performance study and Pi memory evidence remain blocked. |
@@ -48,7 +48,7 @@ A slice can be **implemented** with local code and deterministic evidence, but a
 | B13 expansion/reporting | Partial | Bounded formula-safe validated-history CSV and price sample summary | Additional approved sources, owner-defined retention/deletion policy and any household-account authorization/privacy review remain outstanding. |
 | B14 remote renderer | Blocked/conditional | No remote rendering code or service | Requires operator-owned separate host, explicit retailer policy, privacy/security protocol and a scope decision. |
 
-Batch evidence records are in [`docs/evidence/`](../evidence/). The implementer-run read-only review for code SHA `77795c4301089f6ddd0b1bd5ab5f010ebf277c55` is [here](../evidence/reviews/implementation-candidate-audit.md); it is not an independent review. Evidence status is authoritative at the slice level; the summary above does not upgrade a partial batch into an accepted one.
+Batch evidence records are in [`docs/evidence/`](../evidence/). The implementer-run read-only review for code SHA `eece378259fe7e0f3f5cf0be8a9289ea2f7d090c` is [here](../evidence/reviews/implementation-candidate-audit.md); it is not an independent review. Evidence status is authoritative at the slice level; the summary above does not upgrade a partial batch into an accepted one.
 
 ## 6. Implemented slice register and local evidence
 
@@ -64,7 +64,7 @@ Batch evidence records are in [`docs/evidence/`](../evidence/). The implementer-
 ### B02 — SQLite and recovery
 - `B02-S01–S03`: migrations, schema constraints, store operations, WAL snapshot, manifest validation and restore safety-copy/recovery are implemented in `migrations/` and `internal/storage/`.
 - `scripts/backup-drill.sh` runs focused backup/restore integrity tests; `go test ./internal/storage` covers repository, migration and recovery behavior. Local PASS; independent review and Pi disk/footprint gates open.
-- `B02-S04`: schema/query footprint has unit coverage but no completed 100-product/500-listing Pi benchmark; do not claim the planned capacity gate passed.
+- `B02-S04`: `internal/storage/store_benchmark_test.go` passes a deterministic workstation benchmark at 100 products, 500 listings, 4,000 observations and 4,000 offers. Product page observed ranges were 546.718–551.463 µs/op hot and 623.978–624.984 µs/op after SQLite cache shrink; history pages were 251.902–252.480 and 278.135–279.173 µs/op. Parallel mixed reads measured 931.584–935.923 µs per product/history pair. These are not cold-disk or Pi results. The planned 500-product/2,500-listing Pi workload, memory trace, representative contention, recovery and independent integrity review remain open.
 
 ### B03 — Authentication and security boundaries
 - `B03-S01–S04`: setup, Argon2id admin credentials, sessions, login throttling, reset/audit, mutation CSRF, response security headers, trusted proxies, hardened fetch client and separate exact webhook policy are implemented in `internal/auth`, `internal/fetch`, `internal/notify` and `internal/httpui`.
@@ -102,18 +102,19 @@ Batch evidence records are in [`docs/evidence/`](../evidence/). The implementer-
 - B14 has no renderer implementation. Feasibility beyond architecture requires a user-supplied host and policy/privacy/security approvals.
 
 ## 7. Validation record
-Validated code candidate: `5b4b17ec26d0e42a7ce4158b68ba48c476ce2274` (the SHA used for the recorded full race suite and local release checks). The final source and evidence tree is synced to `main`.
+Validated code candidate: `eece378259fe7e0f3f5cf0be8a9289ea2f7d090c`. The full race suite and synthetic storage benchmarks passed on this exact candidate. Its release-check result is recorded below and in [B09 evidence](../evidence/B09/r1-local-gates.md).
 
 Local workstation gates actually executed during this work:
 - `go test -count=1 ./...` using `/tmp/leanprice-toolchains/go1.27.2/bin/go`: PASS (Go package suites, including UI, notify, storage, jobs, pricing, parser and identity).
-- `go test -race -count=1 ./...`: PASS on candidate `5b4b17ec26d0e42a7ce4158b68ba48c476ce2274`, including the synthetic alert restart/re-arm journey.
 - `go vet ./...` and pinned Staticcheck: PASS.
 - `make test-contract`, `make test-fixtures`, and `make backup-drill`: PASS.
 - `make build-arm64`: PASS; generated ELF for Linux/AArch64.
 - `docker compose config --quiet`: PASS.
 - `docker buildx build --platform linux/arm64 --load -t leanprice:local .`: PASS. ARM64 image is cross-built, not run on Pi.
 - Local AMD64 container smoke (separately built for workstation): liveness/readiness/setup and local asset responses pass under inspected Docker settings; not Pi or ARM64 runtime evidence.
-- `make GO=/tmp/leanprice-toolchains/go1.27.2/bin/go release-check`: all local gates PASS on code candidate `5b4b17ec26d0e42a7ce4158b68ba48c476ce2274`; script then exits status 2 because the external gates below are missing.
+- `go test -run='^$' -bench='^BenchmarkSyntheticPiCatalogPages$' -benchtime=2s -count=2 ./internal/storage` with Go 1.27.2: PASS on workstation (exact workload and observed timing/allocation ranges are in [B02 evidence](../evidence/B02/sqlite-recovery.md)); this does not certify target capacity.
+- `go test -race -count=1 ./...`: PASS on code candidate `eece378259fe7e0f3f5cf0be8a9289ea2f7d090c`, including the synthetic alert restart/re-arm journey.
+- `make GO=/tmp/leanprice-toolchains/go1.27.2/bin/go release-check`: all local gates PASS on code candidate `eece378259fe7e0f3f5cf0be8a9289ea2f7d090c`; script then exits status 2 because the external gates below are missing.
 - `make pi-baseline`: exits status 2 / BLOCKED with no `PI_SSH_TARGET`.
 - `make license-report`: exits successfully but marks first-party packages and `modernc.org/mathutil` Unknown. The dependency module license was manually reviewed as BSD-3-Clause; the owner-selected project license remains absent.
 - `govulncheck`: zero vulnerabilities in imported symbols; one advisory is for an uncalled `golang.org/x/crypto/openpgp` package. This is recorded as an uncalled-module warning, not an imported-symbol finding.
@@ -157,4 +158,4 @@ Open blockers:
 ```
 
 ## 11. Current checkpoint
-All repository plans are under `docs/plans/`; product authority remains under `docs/product/` and technical contracts under `docs/technical/`. Local implementation spans foundation, storage, security, pricing, scheduling, catalog/watch workflows and reporting. Workstation code gates pass. The current checkpoint is **not a completed product plan or release**: approved-source workflows, source/provider-backed promotion and discovery work, retention/account/channel scope, independent reviews, project-license selection and Pi evidence remain outstanding. Keep all retailer sources disabled and continue only within those boundaries.
+All repository plans are under `docs/plans/`; product authority remains under `docs/product/` and technical contracts under `docs/technical/`. Local implementation spans foundation, storage, security, pricing, scheduling, catalog/watch workflows and reporting. Workstation code gates pass, including the local synthetic SQLite benchmark. The current checkpoint is **not a completed product plan or release**: approved-source workflows, source/provider-backed promotion and discovery work, retention/account/channel scope, independent reviews, project-license selection and Pi evidence remain outstanding. Keep all retailer sources disabled and continue only within those boundaries.
