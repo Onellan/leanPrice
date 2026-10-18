@@ -159,8 +159,8 @@ App dependencies flow *handlers → services → repository interfaces → SQLit
 - Gate: backup concurrent with write, clean restore and count checks, disk-full/read-only tests, invalid/incompatible artifact rejection without replacing the current DB, restore failure recovery from its safety backup, and forward-upgrade recovery from a prior image plus validated backup. AC-O03/O05/O06/O10/O11.
 
 **S04 — SQLite stress/footprint and migrations review**
-- Synthetic 100-product/500-listing data seeder, query benchmark, hot/cold cache experiments, FKs and WAL checkpoint. Optimize indexes before changing connection pool size.
-- Gate: query plans and memory trace; document actual allocation plus contention results. AC-R07/R08.
+- `internal/storage/store_benchmark_test.go` builds a deterministic local synthetic dataset of 100 products, 500 exact listings and 4,000 observations with one offer per observation (eight of each per listing), then benchmarks 25-row product and history pages hot, after SQLite `PRAGMA shrink_memory`, and as parallel mixed reads.
+- Gate: on the target Pi, run the planned 500-product/2,500-listing workload with query plans, memory trace and contention results; exercise FK/WAL checkpoint and recovery behavior under representative load. SQLite cache shrink is not a cold-disk experiment. Optimize indexes before changing connection pool size. AC-R07/R08.
 
 **B02 certification:** independent database/data-integrity review, proven restore on local machine; no live retailer integration dependency.
 
