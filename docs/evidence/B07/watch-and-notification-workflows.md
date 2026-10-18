@@ -1,6 +1,6 @@
 # B07 — Watches, alert episodes and notification delivery
 **Status:** partial implementation; versioned preferences and preview/edit flow implemented locally; full acceptance and independent review open  
-**Candidate SHA:** `77795c4301089f6ddd0b1bd5ab5f010ebf277c55`  
+**Candidate SHA:** `5b4b17ec26d0e42a7ce4158b68ba48c476ce2274`  
 **Authority:** FR-021–029; NFR-007/011/012; AC-A01–A16; U-03/U-08/U-11–U-14.
 
 ## Implemented locally
@@ -12,4 +12,5 @@
 ## Local evidence
 - `go test -count=1 ./internal/watches ./internal/alerts ./internal/notify ./internal/httpui ./internal/storage`: PASS.
 - Tests exercise stale/unknown/mismatch/conditional suppression, missing relative history, same-listing baseline, multi-buy basket criteria, episode dedupe, webhook retry classification and test payload/route redaction.
-- Focused alert, UI, app and storage suites cover preference persistence, immutable version updates, stale-edit conflicts, eligible-offer preview filtering and destination integrity. No production webhook configured. No complete AC-A01–A16 restart journey or independent alert review is recorded; webhook endpoint configuration remains instance-level configuration.
+- `go test -race -count=1 ./internal/integration`: PASS. The synthetic two-listing journey verifies the durable alert/outbox path across process restart, unchanged-price dedupe, recovery/re-arm and two simulated webhook deliveries without network access.
+- Focused alert, UI, app and storage suites cover preference persistence, immutable version updates, stale-edit conflicts, eligible-offer preview filtering and destination integrity. No production webhook configured. Remaining AC-A01–A16 coverage, independent alert review and real endpoint test remain open; webhook endpoint configuration remains instance-level configuration.

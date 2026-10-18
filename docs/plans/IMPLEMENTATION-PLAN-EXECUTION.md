@@ -18,7 +18,7 @@ A slice can be **implemented** with local code and deterministic evidence, but a
 ## 3. Evidence and authority rules
 1. Load only the skills triggered by a slice. Source acquisition requires source feasibility and safe HTTP; domain changes require identity/pricing/domain guidance; SQLite/outbox work requires the integrity skill; UI work requires frontend design; release claims require Pi certification and local test-execution guidance.
 2. Evidence states are `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`. A passing unit test proves only its tested contract. Workstation containers do not certify ARM64 hardware or total Pi memory.
-3. Each batch record lists authority IDs, files/interfaces, negative cases, exact commands actually run, result, implementer/reviewer boundary, and remaining risk. Candidate code SHA for this checkpoint: `77795c4301089f6ddd0b1bd5ab5f010ebf277c55`. Later documentation/evidence commits must not be mistaken for the code candidate.
+3. Each batch record lists authority IDs, files/interfaces, negative cases, exact commands actually run, result, implementer/reviewer boundary, and remaining risk. Candidate code SHA for this checkpoint: `5b4b17ec26d0e42a7ce4158b68ba48c476ce2274`. Later documentation/evidence commits must not be mistaken for the code candidate.
 4. Independent review and acceptance evidence must come from people other than the implementer. This session has no delegated reviewer; it records implementer checks honestly and leaves independent gates open.
 5. Never change source approval, project license, deployment, household-account scope or remote-renderer policy by inference.
 
@@ -39,7 +39,7 @@ A slice can be **implemented** with local code and deterministic evidence, but a
 | B04 pricing/extraction/matching | Implemented for deterministic contracts; approved-source flow absent | Cents/rational units, offer eligibility, bounded parser/provenance, identity decisions and refresh service | Approved real source fixtures and independent parser/domain review remain blocked. |
 | B05 jobs/source governance | Implemented locally; operational certification open | Registry default-off, durable leases/queue, scheduler and memory governor | Source-enabled long run, load/performance study and Pi memory evidence remain blocked. |
 | B06 product workflows | Partial | Catalog/search, identity edit/audit, product detail, current-offer rules, observed range, watches, source/activity views, bounded pagination, audited source controls and app cgroup status | Approved-source URL add/preview/confirm and final responsive/browser/accessibility review remain open. |
-| B07 alerting | Partial; local episode/outbox and test-delivery path implemented | Versioned absolute/relative rules, dedupe/outbox/retry, pause/resume, per-watch in-app/configured-webhook preference, versioned edit, no-send offer preview and explicit test payload | Full acceptance journey, independent alert/security review, webhook endpoint configuration and real endpoint test remain open. |
+| B07 alerting | Partial; local episode/outbox, per-watch preferences and synthetic restart/re-arm journey implemented | Versioned absolute/relative rules, dedupe/outbox/retry, pause/resume, versioned edit, no-send offer preview, explicit test payload, and deterministic two-listing drop/recovery/re-arm/delivery flow across restart | Remaining AC-A01–A16 coverage, independent alert/security review, webhook endpoint configuration and real endpoint test remain open. |
 | B08 source adapters | Blocked | Source registry and assessment evidence only | No candidate is approved. Obtain written permission and dated technical approval before implementing or fetching. |
 | B09 R1 release | Local gate implemented; certification blocked | Release script runs local gates; ARM64 build/image and workstation smoke pass | Actual ARM64 Pi test/soak, approved-source E2E, independent reviews, license decision and release sign-off. |
 | B10 assisted discovery | Partial | Bounded provider registry, candidate cap/dedupe and unverified candidate semantics | No approved provider, opt-in settings, provider implementation or candidate-review UI. |
@@ -89,7 +89,8 @@ Batch evidence records are in [`docs/evidence/`](../evidence/). The implementer-
 - `B07-S01`: immutable versioned watch rules support positive ZAR target, 1–99% relative drop, any/all combination, eligibility flags, exact/fresh offer checks and pause/resume.
 - `B07-S02`: durable alert episode/outbox, idempotency, bounded retries and a fixed test webhook payload use the separate notification target policy.
 - `B07-S03`: create/pause, immutable versioned edit, per-watch in-app/configured-webhook preference, no-send validated-offer preview, offers/deals/settings and test-notification action are implemented. Test delivery requires an explicit authenticated CSRF-protected POST; success uses a fixed `type=test` payload; errors do not reveal raw transport details. Legacy watches preserve the prior instance-wide destination.
-- Focused watch, alert, UI, app and storage tests cover destination persistence/integrity, version append, stale-edit conflict and eligible-offer preview. Full AC-A01–A16 restart journey, independent review and real endpoint test remain open.
+- `B07-S04`: `internal/integration/alert_journey_test.go` uses two synthetic exact listings to verify one qualifying drop, durable webhook outbox delivery, restart, ten unchanged-price rechecks without duplicates, recovery above target, a second drop/re-arm and a second delivery. No network call is made.
+- Focused watch, alert, UI, app, storage and integration checks pass. Remaining AC-A01–A16 cases, independent review and real endpoint test remain open.
 
 ### B08–B14 — Conditional and external batches
 - B08 is blocked by written source authorization and feasibility. No adapter should be fabricated to create superficial coverage.
@@ -101,18 +102,18 @@ Batch evidence records are in [`docs/evidence/`](../evidence/). The implementer-
 - B14 has no renderer implementation. Feasibility beyond architecture requires a user-supplied host and policy/privacy/security approvals.
 
 ## 7. Validation record
-Validated code candidate: `77795c4301089f6ddd0b1bd5ab5f010ebf277c55` (the SHA used for the recorded local release checks). The exact final repository tree is synced to [`main` at `924e159`](https://github.com/Onellan/leanPrice/commit/924e159b83946443e00e8d39617b32da1b02a9c0).
+Validated code candidate: `5b4b17ec26d0e42a7ce4158b68ba48c476ce2274` (the SHA used for the recorded full race suite and local release checks). The final source and evidence tree is synced to `main`.
 
 Local workstation gates actually executed during this work:
 - `go test -count=1 ./...` using `/tmp/leanprice-toolchains/go1.27.2/bin/go`: PASS (Go package suites, including UI, notify, storage, jobs, pricing, parser and identity).
-- `go test -race -count=1 ./...`: PASS after the pagination, operator-control and watch-preference changes.
+- `go test -race -count=1 ./...`: PASS on candidate `5b4b17ec26d0e42a7ce4158b68ba48c476ce2274`, including the synthetic alert restart/re-arm journey.
 - `go vet ./...` and pinned Staticcheck: PASS.
 - `make test-contract`, `make test-fixtures`, and `make backup-drill`: PASS.
 - `make build-arm64`: PASS; generated ELF for Linux/AArch64.
 - `docker compose config --quiet`: PASS.
 - `docker buildx build --platform linux/arm64 --load -t leanprice:local .`: PASS. ARM64 image is cross-built, not run on Pi.
 - Local AMD64 container smoke (separately built for workstation): liveness/readiness/setup and local asset responses pass under inspected Docker settings; not Pi or ARM64 runtime evidence.
-- `make GO=/tmp/leanprice-toolchains/go1.27.2/bin/go release-check`: all local gates PASS on code candidate `77795c4301089f6ddd0b1bd5ab5f010ebf277c55`; script then exits status 2 because the external gates below are missing.
+- `make GO=/tmp/leanprice-toolchains/go1.27.2/bin/go release-check`: all local gates PASS on code candidate `5b4b17ec26d0e42a7ce4158b68ba48c476ce2274`; script then exits status 2 because the external gates below are missing.
 - `make pi-baseline`: exits status 2 / BLOCKED with no `PI_SSH_TARGET`.
 - `make license-report`: exits successfully but marks first-party packages and `modernc.org/mathutil` Unknown. The dependency module license was manually reviewed as BSD-3-Clause; the owner-selected project license remains absent.
 - `govulncheck`: zero vulnerabilities in imported symbols; one advisory is for an uncalled `golang.org/x/crypto/openpgp` package. This is recorded as an uncalled-module warning, not an imported-symbol finding.

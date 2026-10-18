@@ -1,6 +1,6 @@
 # Implementation candidate read-only audit
 
-**Audited code SHA:** `77795c4301089f6ddd0b1bd5ab5f010ebf277c55`  
+**Audited code SHA:** `5b4b17ec26d0e42a7ce4158b68ba48c476ce2274`  
 **Reviewer:** implementation author in this session; this is **not an independent review or acceptance certification**.  
 **Authority reviewed:** product PRD/UX/Acceptance, technical architecture/data/ADRs/validation, detailed roadmap and execution tracker, README/agent guidance, source assessments, notices, code standards and batch evidence.
 
@@ -36,11 +36,11 @@
 
 ## Local evidence reviewed
 - `go test -count=1 ./...`: PASS.
-- `go test -race -count=1 ./...`: PASS.
+- `go test -race -count=1 ./...`: PASS, including the synthetic alert restart/re-arm integration journey.
 - `go vet ./...` and pinned Staticcheck: PASS.
 - `make test-contract`, `make test-fixtures`, `make backup-drill`: PASS.
 - ARM64 binary/image cross-build and Compose validation: PASS. ARM64 image not run on Pi.
-- `make release-check`: local gates pass; exit 2 with external certification requirements listed.
+- `make GO=/tmp/leanprice-toolchains/go1.27.2/bin/go release-check`: local gates pass; exit 2 with external certification requirements listed.
 - Local Markdown-link validation and `bash -n scripts/*.sh`: PASS.
 
 No new reproducible code defect was established by this implementer-run audit. The open findings are incomplete product scope or absent external acceptance evidence, not independent passes.
