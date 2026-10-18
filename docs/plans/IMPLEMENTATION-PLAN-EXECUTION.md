@@ -101,10 +101,11 @@ Batch evidence records are in [`docs/evidence/`](../evidence/). The implementer-
 - B14 has no renderer implementation. Feasibility beyond architecture requires a user-supplied host and policy/privacy/security approvals.
 
 ## 7. Validation record
-Current implementation candidate: [`77795c4301089f6ddd0b1bd5ab5f010ebf277c55`](https://github.com/Onellan/leanPrice/commit/77795c4301089f6ddd0b1bd5ab5f010ebf277c55) on `implementation/plan-relocation-and-full-delivery`. Evidence-only follow-up commits are tracked separately.
+Validated code candidate: `77795c4301089f6ddd0b1bd5ab5f010ebf277c55` (the SHA used for the recorded local release checks). The exact final repository tree is synced to [`main` at `924e159`](https://github.com/Onellan/leanPrice/commit/924e159b83946443e00e8d39617b32da1b02a9c0).
 
 Local workstation gates actually executed during this work:
-- `go test -count=1 ./...` using `/tmp/leanprice-toolchains/go1.27.2/bin/go`: PASS (Go package suites, including UI, notify, storage, jobs, pricing, parser and identity).\n- `go test -race -count=1 ./...`: PASS after the pagination, operator-control and watch-preference changes.
+- `go test -count=1 ./...` using `/tmp/leanprice-toolchains/go1.27.2/bin/go`: PASS (Go package suites, including UI, notify, storage, jobs, pricing, parser and identity).
+- `go test -race -count=1 ./...`: PASS after the pagination, operator-control and watch-preference changes.
 - `go vet ./...` and pinned Staticcheck: PASS.
 - `make test-contract`, `make test-fixtures`, and `make backup-drill`: PASS.
 - `make build-arm64`: PASS; generated ELF for Linux/AArch64.
