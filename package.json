@@ -1,0 +1,10 @@
+{
+  "name": "leanprice-assets",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Build-time Tailwind CSS compiler for leanPrice; no Node runtime.",
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.0",
+    "tailwindcss": "4.3.0"
+  }
+}

@@ -1,0 +1,41 @@
+{{define "base" -}}
+<!doctype html>
+<html lang="en-ZA">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>{{.Title}} · leanPrice</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <script src="/static/js/htmx.min.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <a class="brand" href="/" aria-label="leanPrice home"><span class="brand-mark" aria-hidden="true">lp</span><span>leanPrice</span></a>
+        <nav class="primary-nav" hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
+          {{range .Navigation}}
+          <a href="{{.Path}}"{{if eq $.Path .Path}} aria-current="page"{{end}}>{{.Label}}</a>
+          {{end}}
+        </nav>
+        <p class="sidebar-note">Local price history, with the evidence in view.</p>
+      </aside>
+      <div class="workspace">
+        <header class="topbar">
+          <a class="mobile-brand" href="/">leanPrice</a>
+          <div class="account-actions">
+            <p class="topbar-note">{{.Username}} <span aria-hidden="true">·</span> ZAR</p>
+            <form method="post" action="/logout">
+              <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+              <button class="button button-secondary" type="submit">Sign out</button>
+            </form>
+          </div>
+        </header>
+        {{template "main" .}}
+        <footer class="page-footer">Prices are observations, not checkout guarantees.</footer>
+      </div>
+    </div>
+  </body>
+</html>
+{{end}}

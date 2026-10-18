@@ -1,10 +1,10 @@
 # leanPrice — Data Model, API and Domain Contracts
-**Status:** Proposed v1.1 technical contract (not implemented; design alignment review)  
+**Status:** v1.1 technical contract; SQLite schema v4, pricing/matching/extraction, paginated product/history/activity views, product/watch workflows, source/operator controls, sampled history chart and bounded export are implemented locally; source-backed and external acceptance gates remain open  
 **Depends on:** merged [PRD](../product/PRD.md), [UX](../product/UX-SPEC.md), [Acceptance](../product/ACCEPTANCE.md) and [Architecture](ARCHITECTURE.md).  
 **Source-of-truth rule:** changes in pricing/business meaning require product-document revision first.
 
 ## 1. Core invariants
-1. **No floating point money.** ZAR amounts use INTEGER cents; display formatting is localized. External decimal strings parse with explicit locale or fail.
+1. **No floating point money.** Amounts use positive integer minor units plus an explicit currency code and minor-unit scale. ZAR uses scale 2 (cents). Only currencies with an implemented scale are accepted; cross-currency ranking or alert comparison is prohibited without a conversion policy.
 2. **No zero-price sale.** Price <=0, absent currency, ambiguous product or unassessed source cannot create a valid alert.
 3. **Canonical product != retailer listing != observation != qualified offer.** These entities are separate with explicit foreign keys.
 4. **No guess as known.** Stock/offer eligibility/confidence can be unknown. Unknown never becomes true during ranking.
@@ -44,7 +44,7 @@ erDiagram
 - `source_events`, `match_reviews`, `admin_audit`: meaningful state transitions and manual decisions.
 - `settings`, `admin_users`, `sessions`: private single-instance metadata and authentication.
 
-## 3. Baseline DDL (design sketch, to finalize in migrations)
+## 3. Reference DDL and authoritative migrations
 Types are SQLite primitives; IDs are opaque TEXT UUID/ULID unless justified otherwise, all timestamps UTC epoch milliseconds INTEGER, all prices INTEGER cents. The migration author must add CHECK and foreign-key constraints equivalent to those shown and test all indexes with query plans. Canonical quantity is a positive rational normalized to its dimension's base unit (`L`, `kg`, or `item`); the pack count is separate. The database and service must reject inconsistent dimension/unit pairs. A retailer is descriptive; only an individual source can be assessed, enabled, paused, or rate-limited. Enabling requires `assessment_state='approved'`; pausing disables the source without erasing its assessment history.
 
 ```sql
@@ -138,7 +138,8 @@ CREATE TABLE observed_offers (
   observation_id TEXT NOT NULL REFERENCES observations(id),
   offer_kind TEXT NOT NULL CHECK
     (offer_kind IN ('standard','public_special','member','multibuy','coupon','unknown')),
-  currency TEXT NOT NULL,
+  currency TEXT NOT NULL CHECK (length(currency) = 3 AND currency NOT GLOB '*[^A-Z]*'),
+  currency_scale INTEGER NOT NULL CHECK (currency_scale BETWEEN 0 AND 3),
   amount_minor INTEGER NOT NULL CHECK (amount_minor > 0),
   original_claim_minor INTEGER,
   minimum_qty INTEGER NOT NULL DEFAULT 1 CHECK (minimum_qty > 0),
@@ -171,6 +172,8 @@ CREATE TABLE watch_rule_versions (
     CHECK (condition_operator IN ('any','all')),
   allow_member INTEGER NOT NULL DEFAULT 0 CHECK (allow_member IN (0,1)),
   allow_multibuy INTEGER NOT NULL DEFAULT 0 CHECK (allow_multibuy IN (0,1)),
+  notification_channel TEXT CHECK
+    (notification_channel IS NULL OR notification_channel IN ('in_app','webhook')),
   rearm_policy_json TEXT NOT NULL DEFAULT '{}',
   created_at INTEGER NOT NULL,
   PRIMARY KEY (watch_id, version),
@@ -222,7 +225,7 @@ CREATE TABLE delivery_outbox (
 );
 ```
 
-This is **not executable production-ready schema**: constraints, admin/session/event tables, storage paths, online-migration behavior, indexes and migration numbering must be finalized and reviewed slice-by-slice. In particular, avoid an outbox job whose status can become inconsistent with a source `job`; transactional boundaries must be explicit. SQLite's composite foreign key on `watches` enforces that an optional selected listing belongs to the same canonical product. Service transactions must additionally enforce that an alert's observed offer belongs to the watch's selected listing, or to an exact listing for that canonical product when the watch is product-wide.
+This DDL is a **reference sketch**, not the executable schema. The authoritative forward-only schema is in `migrations/0001_core.sql` through `0004_watch_notification_channel.sql`; migration tests enforce its checksums, constraints and upgrade behavior. Compare any contract change against those files and add a new migration rather than editing an applied migration. The SQLite composite foreign keys enforce that an optional selected listing belongs to the canonical product and source. Storage transactions additionally enforce alert lineage from an exact eligible offer through the current watch rule and episode, including the selected notification destination where one is recorded. Network calls remain outside write transactions.
 
 ## 4. Normalized extraction contract
 A fetcher returns immutable bounded response metadata; adapter parsing never performs network calls behind a handler's back. Every parser returns an extraction plus per-field origin and warnings. Persist only the normalized facts, field origins, evidence digest, bounded selector/JSON-LD path and sanitized source URL needed to explain a decision. Do not persist full response bodies or raw HTML by default. URLs must remove userinfo and redact credential-like query values while retaining only assessed SKU-identifying parameters; redirects are revalidated before the final sanitized URL is recorded.
@@ -276,7 +279,7 @@ Price precedence is not hard-coded globally: adapter supports explicit field ori
 
 ## 6. Offer eligibility and ranking contract
 The `observed_offers` row is **a declared offer**, not necessarily a verified eligible offer. Ranking service first filters:
-- source approved/enabled, listing exact, observation validation valid, observed timestamp within configured freshness, allowed currency, price >0;
+- source approved/enabled, listing exact, observation validation valid, observed timestamp within configured freshness, supported currency and matching minor-unit scale, price >0;
 - no unresolved mismatch/conflicting extraction; validity dates not expired;
 - stock = in_stock preferred, stock unknown in separate qualified group, out_of_stock excluded from default purchase recommendation;
 - `eligibility_state=public` for default public-only comparison;
@@ -316,39 +319,38 @@ For a multibuy explicitly allowed by the rule, `target_minor` applies to the com
 
 **Concurrency invariants:** manual checks coalesce with existing due job; atomic claim requires SQLite write transaction; fetch outside DB transaction; commit observation + source status, then evaluate events. Queue age/length constrained; bursts deferred or rejected with `429` UI feedback; no hidden goroutine per watched item.
 
-## 9. Initial HTTP route contracts
-HTML first. All endpoints other than login/setup/health require a session. External navigation is normal anchor with `rel="noopener noreferrer"`. HTMX POSTs carry CSRF; partials and non-HTMX paths share service validation.
+## 9. HTTP route contracts and implementation status
+HTML first. Application pages and mutations require a session; login, setup, health and local static assets are public. External navigation is a normal anchor. HTMX GETs return the main fragment; mutation routes validate the same origin and CSRF token as ordinary POSTs.
 
-| Route | Method | Auth | Behaviour |
+| Route | Method | Auth | Behaviour / implementation status |
 |---|---|---|---|
-| `/` | GET | yes | Dashboard full page or selected fragment |
-| `/login` | GET/POST | anonymous/CSRF as applicable | Login; rotate session on success |
-| `/logout` | POST | yes+CSRF | Invalidate session; state change is never performed by GET |
-| `/setup` | GET/POST | one-use local setup | Initial admin and privacy configuration |
-| `/search` | GET | yes | Local catalog R1; opt-in discovery R2 |
-| `/products` | GET | yes | Paginated/filterable catalog |
-| `/products/from-url` | POST | yes+CSRF | Validate URL; preview token; no immediate unconfirmed attach |
-| `/products` | POST | yes+CSRF | Persist canonical product after review |
-| `/products/{id}` | GET | yes | Product, offers and history |
-| `/products/{id}` | POST | yes+CSRF | Edit reviewed canonical identity or archive with audit |
-| `/products/{id}/listings` | POST | yes+CSRF | Attach confirmed listing |
-| `/listings/{id}/check` | POST | yes+CSRF | Enqueue bounded idempotent refresh, return 202/HTMX |
-| `/products/{id}/watches` | POST | yes+CSRF | Save versioned watch criteria |
-| `/deals` | GET | yes | Fresh eligible offers and recent deal episodes |
-| `/activity` | GET | yes | Paginated event history |
-| `/sources` | GET | yes | Capability/health and assessment |
-| `/sources/{id}/pause` | POST | admin+CSRF | Pause source with audit |
-| `/sources/{id}/enable` | POST | admin+CSRF | Enable only an assessed, approved source; audit decision |
-| `/settings` | GET/POST | yes+CSRF for POST | Locale, resource, notification settings |
-| `/settings/notifications/test` | POST | yes+CSRF | Explicit test delivery |
-| `/admin/backups` | GET | admin | List versioned backup artifacts |
-| `/admin/backups` | POST | admin+CSRF | Create verified versioned backup artifact |
-| `/admin/backups/{id}/restore` | POST | admin+CSRF | Validate artifact and compatibility, create safety backup, stop work, restore atomically where possible, then verify readiness; reinstate safety backup on any replacement/readiness failure |
-| `/admin/exports/products.csv` | GET | yes | Later planned: stream local product/observation export with formula-safe cells and no secrets |
-| `/health/live` | GET | LAN/no secrets | Process alive |
-| `/health/ready` | GET | LAN/no secrets | DB/migrations ready |
+| `/` | GET | yes | Dashboard full page or selected fragment — implemented |
+| `/login` | GET/POST | anonymous/CSRF as applicable | Login; rotate session on success — implemented |
+| `/logout` | POST | yes+CSRF | Invalidate session; state change is never performed by GET — implemented |
+| `/setup` | GET/POST | one-use local setup | Initial administrator setup — implemented |
+| `/search` | GET | yes | Local catalog search — implemented; retailer discovery providers are absent/disabled |
+| `/products` | GET | yes | Local catalog with bounded keyset pagination — implemented |
+| `/products/new` | GET/POST | yes+CSRF | Create a canonical product identity — implemented |
+| `/products/from-url` | POST | yes+CSRF | Validate URL and preview before attach — planned; no approved source or adapter exists |
+| `/products/{id}` | GET | yes | Product identity, fresh exact offers, observed range, bounded sampled history chart and keyset-paginated observation table — implemented |
+| `/products/{id}/edit` | GET/POST | yes+CSRF | Edit identity with optimistic version, rationale audit and exact-listing re-review — implemented |
+| `/products/{id}/listings` | POST | yes+CSRF | Attach confirmed listing — planned behind B00/B08 approval and adapter gates |
+| `/listings/{id}/check` | POST | yes+CSRF | Enqueue bounded idempotent refresh — planned; no manual check route is exposed |
+| `/watches/new` | GET/POST | yes+CSRF | Preview current validated offers without sending an alert; save versioned criteria and selected in-app/configured-webhook destination — implemented |
+| `/watches/{id}/edit` | GET/POST | yes+CSRF | Edit watch criteria and destination by appending an immutable rule version; stale updates conflict — implemented |
+| `/watches/{id}/active` | POST | yes+CSRF | Pause/resume a watch — implemented |
+| `/deals` | GET | yes | Fresh eligible ZAR public offers — implemented |
+| `/activity` | GET | yes | Bounded keyset-paginated activity view — implemented |
+| `/sources` | GET | yes | Assessment, capabilities, last success/failure, retry time, parser version and guarded operator control — implemented; approvals remain external |
+| `/sources/{id}/enabled` | POST | yes+CSRF | Pause or enable an already approved source with source-event and admin-audit records; cannot self-approve — implemented |
+| `/settings` | GET | yes | Password change, live app-cgroup resource panel and local operation guidance — implemented; cgroup view is not whole-host Pi certification |
+| `/settings/notifications/test` | POST | yes+CSRF | Explicit fixed test delivery to a configured webhook; shares its bounded target policy — implemented |
+| CLI `backup` / `restore` | command | local operator | Verified SQLite backup, compatibility validation, safety snapshot and restore recovery — implemented; no backup web routes |
+| `/exports/history.csv` | GET | yes | Bounded streaming export of validated exact public history; excludes source URLs/secrets and formula-escapes text — implemented |
+| `/health/live` | GET | LAN/no secrets | Process alive — implemented |
+| `/health/ready` | GET | LAN/no secrets | App startup readiness — implemented |
 
-**General responses:** 400 unsafe malformed requests; 401 no session; 403 policy forbidden; 404 absent; 409 stale version conflict; 422 domain validation; 429 backpressure/rate; 503 dependency/policy disabled. HTMX 422 returns form fragment with errors and focus; non-HTMX performs full render. Protect the setup route against remote first-user takeover.
+**General responses:** 400 malformed requests; 401 no session; 403 policy forbidden; 404 absent; 409 stale version conflict; 422 domain validation; 429 backpressure/rate; 503 dependency/policy disabled. Ordinary route GETs return a full HTML document; HTMX GETs return the main content fragment. Form-validation responses currently render the full document, including for HTMX POSTs. Protect the setup route against remote first-user takeover.
 
 For cross-component diagnostics, internal service results use typed codes rather than passing raw network exception strings into HTML.
 

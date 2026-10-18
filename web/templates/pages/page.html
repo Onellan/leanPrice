@@ -1,0 +1,163 @@
+{{define "main" -}}
+<main id="main-content" class="main-content" tabindex="-1">
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">{{if eq .Path "/"}}Household price watch{{else}}leanPrice{{end}}</p>
+      <h1>{{.Heading}}</h1>
+      <p class="page-description">{{.Description}}</p>
+    </div>
+    {{if and (eq .Path "/products") (not .IsProductDetail) (not .IsProductForm)}}<div class="heading-actions"><a class="button button-secondary" href="/exports/history.csv">Export history CSV</a><a class="button button-primary" href="/products/new">Add product</a></div>{{end}}
+    {{if and (eq .Path "/watches") (not .IsWatchForm) (gt (len .Products) 0)}}<a class="button button-primary" href="/watches/new">New watch</a>{{end}}
+  </div>
+  {{if .FormError}}<p class="form-error" role="alert">{{.FormError}}</p>{{end}}
+  {{if .Error}}<p class="form-error" role="alert">{{.Error}}</p>{{end}}
+  {{if .Notice}}<p class="auth-help" role="status">{{.Notice}}</p>{{end}}
+  {{if eq .Path "/"}}
+  <section class="summary-grid" aria-label="Price watch summary">
+    <div class="summary-item"><span class="summary-label">Verified offers</span><strong>{{len .Deals}}</strong><span class="summary-hint">Fresh public offers only</span></div>
+    <div class="summary-item"><span class="summary-label">Price watches</span><strong>{{len .Watches}}</strong><span class="summary-hint">Saved rules</span></div>
+    <div class="summary-item"><span class="summary-label">Enabled sources</span><strong>{{enabledSources .Sources}}</strong><span class="summary-hint">{{len .Sources}} assessed candidates</span></div>
+  </section>
+  {{if gt (len .Deals) 0}}
+  <section class="data-section" aria-labelledby="home-deals-title"><h2 id="home-deals-title">Current verified offers</h2>{{template "deals-table" .}}</section>
+  {{end}}
+  {{if eq (len .Products) 0}}
+  <section class="empty-state" aria-labelledby="empty-title"><div class="empty-mark" aria-hidden="true">lp</div><div><h2 id="empty-title">Your watch list is ready to begin</h2><p>Add a product variant to your private catalog. Retailer checks will stay unavailable until a source is approved.</p><a class="text-link" href="/products/new">Add your first product</a></div></section>
+  {{end}}
+  {{end}}
+
+  {{if and (eq .Path "/products") (not .IsProductDetail) (not .IsProductForm)}}
+    {{if gt (len .Products) 0}}
+    <div class="table-wrap"><table class="data-table"><caption class="visually-hidden">Saved product variants</caption><thead><tr><th scope="col">Product</th><th scope="col">Quantity</th><th scope="col">Listings</th><th scope="col">Watches</th><th scope="col">Last observation</th><th scope="col">Action</th></tr></thead><tbody>
+    {{range .Products}}<tr><th scope="row"><a href="/products/{{.ID}}">{{.Name}}</a>{{if .Brand}}<span class="table-subtext">{{.Brand}} {{.Variant}}</span>{{end}}</th><td>{{if gt .PackCount 1}}{{.PackCount}} × {{end}}{{.Quantity}}</td><td>{{.ListingCount}}</td><td>{{.WatchCount}}</td><td>{{timestamp .LastObservedAt}}</td><td><a class="text-link" href="/watches/new?product={{.ID}}">Create watch</a></td></tr>{{end}}
+    </tbody></table></div>
+    {{if .HasNextPage}}<nav class="page-pagination" aria-label="Product pages"><a href="{{.NextPageURL}}">Next products</a></nav>{{end}}
+    {{else}}
+    <section class="empty-state"><div class="empty-mark" aria-hidden="true">lp</div><div><h2>No products saved</h2><p>Add the exact product variant you want to track. Retailer listings can be linked after a source is approved.</p><a class="text-link" href="/products/new">Add product</a></div></section>
+    {{end}}
+  {{end}}
+
+  {{if eq .Path "/search"}}
+  <section class="search-panel" aria-label="Search saved products"><form method="get" action="/search"><label for="catalog-query">Product name, brand or variant</label><div class="search-row"><input id="catalog-query" name="q" maxlength="120" value="{{.SearchQuery}}" autocomplete="off"><button class="button button-primary" type="submit">Search catalog</button></div></form><p class="auth-help">This searches saved products locally. Retailer search providers remain disabled until their source policy is approved.</p></section>
+  {{if gt (len .Products) 0}}
+    <div class="table-wrap"><table class="data-table"><caption class="visually-hidden">Saved product search results</caption><thead><tr><th scope="col">Product</th><th scope="col">Quantity</th><th scope="col">Watches</th></tr></thead><tbody>{{range .Products}}<tr><th scope="row"><a href="/products/{{.ID}}">{{.Name}}</a><span class="table-subtext">{{.Brand}} {{.ProductLine}} {{.Variant}}</span></th><td>{{if gt .PackCount 1}}{{.PackCount}} × {{end}}{{.Quantity}}</td><td>{{.WatchCount}}</td></tr>{{end}}</tbody></table></div>
+    {{if .HasNextPage}}<nav class="page-pagination" aria-label="Search result pages"><a href="{{.NextPageURL}}">Next results</a></nav>{{end}}
+  {{else if .SearchQuery}}
+  <section class="empty-state"><div class="empty-mark" aria-hidden="true">lp</div><div><h2>No saved product matches</h2><p>Try a shorter product name, brand or variant.</p></div></section>
+  {{else}}
+  <section class="empty-state"><div class="empty-mark" aria-hidden="true">lp</div><div><h2>Search your saved products</h2><p>You can keep and search a local catalog while retailer discovery remains unavailable.</p></div></section>
+  {{end}}
+  {{end}}
+
+  {{if .IsProductDetail}}
+  <section class="detail-card" aria-labelledby="identity-title"><div><p class="eyebrow">Canonical product identity</p><h2 id="identity-title">{{.SelectedProduct.Name}}</h2><p>{{.SelectedProduct.Brand}} {{.SelectedProduct.ProductLine}} {{.SelectedProduct.Variant}}</p><p>{{if gt .SelectedProduct.PackCount 1}}{{.SelectedProduct.PackCount}} × {{end}}{{.SelectedProduct.Quantity}}{{if .SelectedProduct.GTIN}} · GTIN {{.SelectedProduct.GTIN}}{{end}}</p></div><div class="detail-actions"><a class="button button-secondary" href="/products/{{.SelectedProduct.ID}}/edit">Edit identity</a><a class="button button-primary" href="/watches/new?product={{.SelectedProduct.ID}}">Create watch</a></div></section>
+  {{if gt (len .PriceChart) 0}}<section class="data-section" aria-labelledby="price-chart-heading"><h2 id="price-chart-heading">Observed public prices · last 30 days</h2><figure><svg class="price-chart" viewBox="0 0 320 120" role="img" aria-labelledby="price-chart-title" aria-describedby="price-chart-note"><title id="price-chart-title">Observed prices for {{.SelectedProduct.Name}}</title><desc>Each point is one validated public in-stock price observation. Points from different retailers are not connected.</desc><line class="price-chart-axis" x1="20" y1="20" x2="20" y2="100" aria-hidden="true"></line><line class="price-chart-axis" x1="20" y1="100" x2="300" y2="100" aria-hidden="true"></line>{{range .PriceChart}}<circle class="price-chart-point" cx="{{.X}}" cy="{{.Y}}" r="4"><title>{{.AccessibleLabel}}</title></circle>{{end}}</svg><figcaption id="price-chart-note">One point per recorded observation, with no interpolation between stores. Up to 100 of the latest validated public, in-stock ZAR observations are shown; see the table below for individual recorded outcomes.</figcaption></figure></section>{{end}}
+  {{if .PriceRange}}<section class="data-section" aria-labelledby="observed-range-title"><h2 id="observed-range-title">Observed public price range · last 30 days</h2><p>{{price .PriceRange.MinimumMinor .PriceRange.Currency .PriceRange.CurrencyScale}}–{{price .PriceRange.MaximumMinor .PriceRange.Currency .PriceRange.CurrencyScale}} across {{.PriceRange.ObservationCount}} validated in-stock observations from {{.PriceRange.RetailerCount}} retailers.</p><p class="auth-help">This is a sample of recorded prices, not a savings estimate or a claim about every retailer. First: {{timestamp .PriceRange.FirstObservedAt}} · Last: {{timestamp .PriceRange.LastObservedAt}}.</p></section>{{end}}
+  <section class="data-section" aria-labelledby="offers-title"><h2 id="offers-title">Latest verified offers</h2>
+    {{if gt (len .ProductOffers) 0}}
+    <div class="table-wrap"><table class="data-table"><caption class="visually-hidden">Latest validated offers for exact approved retailer listings</caption><thead><tr><th scope="col">Retailer</th><th scope="col">Price</th><th scope="col">Offer terms</th><th scope="col">Stock</th><th scope="col">Observed</th><th scope="col">Listing</th></tr></thead><tbody>{{range .ProductOffers}}<tr><th scope="row">{{.Retailer}}</th><td>{{price .AmountMinor .Currency .Scale}}</td><td>{{.OfferKind}} · {{.Eligibility}}{{if gt .MinimumQty 1}} · {{.MinimumQty}} listing packs{{end}}</td><td>{{.Stock}}</td><td>{{timestamp .ObservedAt}}</td><td>{{if .SafeURL}}<a class="text-link" href="{{.SafeURL}}">Open retailer listing</a>{{else}}Link unavailable{{end}}</td></tr>{{end}}</tbody></table></div>
+    {{else}}<p class="auth-help">No fresh, validated offers from an approved and enabled exact listing are available. This does not mean retailers have no current offers.</p>{{end}}
+  </section>
+  <section class="data-section" aria-labelledby="history-title"><h2 id="history-title">Observation history</h2>
+    {{if gt (len .History) 0}}
+    <div class="table-wrap"><table class="data-table"><caption class="visually-hidden">Product observation history</caption><thead><tr><th scope="col">Observed</th><th scope="col">Retailer</th><th scope="col">Result</th><th scope="col">Price</th><th scope="col">Stock</th><th scope="col">Evidence</th></tr></thead><tbody>{{range .History}}<tr><td>{{timestamp .ObservedAt}}</td><td>{{.Retailer}}</td><td>{{.FetchStatus}} · {{.Validation}}</td><td>{{if .AmountMinor.Valid}}{{price .AmountMinor.Int64 .Currency .CurrencyScale}} · {{.OfferKind}}{{else}}—{{end}}</td><td>{{.Stock}}</td><td>{{.FailureCode}}</td></tr>{{end}}</tbody></table></div>
+    {{if .HasNextPage}}<nav class="page-pagination" aria-label="Observation history pages"><a href="{{.NextPageURL}}">Older observations</a></nav>{{end}}
+    {{else}}<p class="auth-help">No retailer observations have been recorded for this product.</p>{{end}}
+  </section>
+  {{end}}
+
+  {{if .IsProductForm}}
+  <section class="auth-card data-form" aria-labelledby="product-form-title">
+    <h2 id="product-form-title">{{if .IsProductEdit}}Edit product identity{{else}}Product identity{{end}}</h2>
+    <p>Use one brand, line, variant and pack size per product. Retailer pages are not fetched by this form.</p>
+    <form method="post" action="{{.FormAction}}">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      {{if .IsProductEdit}}<input type="hidden" name="expected_updated_at" value="{{.ExpectedUpdatedAt}}">{{end}}
+      <label for="product-name">Display name</label><input id="product-name" name="name" required maxlength="240" value="{{.Name}}" autocomplete="off">
+      <label for="product-brand">Brand</label><input id="product-brand" name="brand" maxlength="120" value="{{.Brand}}" autocomplete="off">
+      <label for="product-line">Product line</label><input id="product-line" name="line" maxlength="120" value="{{.ProductLine}}" autocomplete="off">
+      <label for="product-variant">Variant</label><input id="product-variant" name="variant" maxlength="160" value="{{.Variant}}" autocomplete="off">
+      <label for="product-quantity">Quantity per item</label><input id="product-quantity" name="quantity" required maxlength="128" value="{{.Quantity}}" aria-describedby="quantity-help" placeholder="750 ml, 1 L, 500 g or 12 count">
+      <p id="quantity-help" class="auth-help">Pack quantity may be included, for example “2 x 750 ml”.</p>
+      <label for="product-gtin">GTIN (optional)</label><input id="product-gtin" name="gtin" inputmode="numeric" maxlength="14" value="{{.GTIN}}" autocomplete="off">
+      {{if .IsProductEdit}}<label for="edit-rationale">Why is this identity changing?</label><textarea id="edit-rationale" name="rationale" required maxlength="900">{{.Rationale}}</textarea>{{end}}
+      <button class="button button-primary" type="submit">{{if .IsProductEdit}}Save identity changes{{else}}Save product{{end}}</button>
+    </form>
+    <a class="text-link" href="/products">Cancel</a>
+  </section>
+  {{end}}
+
+  {{if and (eq .Path "/watches") (not .IsWatchForm)}}
+    {{if gt (len .Watches) 0}}
+    <div class="table-wrap"><table class="data-table"><caption class="visually-hidden">Price watches</caption><thead><tr><th scope="col">Product</th><th scope="col">Target</th><th scope="col">Eligibility</th><th scope="col">Notification</th><th scope="col">Rule version</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead><tbody>
+    {{range .Watches}}<tr><th scope="row">{{.ProductName}}</th><td>{{if .TargetMinor.Valid}}{{money .TargetMinor.Int64}}{{end}}{{if .DropBPS.Valid}}{{if .TargetMinor.Valid}} · {{if eq .ConditionOperator "all"}}and{{else}}or{{end}} {{end}}{{dropPercent .DropBPS.Int64}} decrease{{end}}</td><td>{{if .AllowMember}}Member included{{else}}Public{{end}}{{if .AllowMulti}} · multibuy{{end}}</td><td>{{if eq .NotificationChannel "webhook"}}Configured webhook{{else if eq .NotificationChannel "in_app"}}In application{{else}}Instance default{{end}}</td><td>v{{.RuleVersion}}</td><td>{{if .Active}}Active{{else}}Paused{{end}}</td><td><a class="text-link" href="/watches/{{.ID}}/edit">Edit</a><form class="inline-form" method="post" action="/watches/{{.ID}}/active"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><input type="hidden" name="active" value="{{if .Active}}false{{else}}true{{end}}"><button class="button button-secondary" type="submit">{{if .Active}}Pause{{else}}Resume{{end}}</button></form></td></tr>{{end}}
+    </tbody></table></div>
+    {{else}}
+    <section class="empty-state"><div class="empty-mark" aria-hidden="true">lp</div><div><h2>No watches yet</h2><p>Create a price target for a saved product. An alert still requires a fresh, exact offer from an approved source.</p>{{if gt (len .Products) 0}}<a class="text-link" href="/watches/new">Create a watch</a>{{else}}<a class="text-link" href="/products/new">Add a product first</a>{{end}}</div></section>
+    {{end}}
+  {{end}}
+
+  {{if and .IsWatchForm (not .IsWatchEdit)}}<section class="auth-card data-form" aria-labelledby="watch-preview-picker-title"><h2 id="watch-preview-picker-title">Preview current offers</h2><p>Select a saved product to see its latest validated offer evidence before you create a watch. This does not send an alert.</p><form method="get" action="/watches/new"><label for="watch-preview-product">Product to preview</label><select id="watch-preview-product" name="product" required><option value="">Choose a product</option>{{range .Products}}<option value="{{.ID}}"{{if eq $.ProductID .ID}} selected{{end}}>{{.Name}}</option>{{end}}</select><button class="button button-secondary" type="submit">Preview offers</button></form></section>{{end}}
+  {{if .WatchPreview}}<section class="data-section" aria-labelledby="watch-preview-title"><h2 id="watch-preview-title">Current offers for {{.SelectedProduct.Name}}</h2><p class="auth-help">Preview only: these are the latest fresh, valid observations from exact approved listings. Conditions and timestamps remain visible. No alert is evaluated or sent by this preview.</p>{{if gt (len .ProductOffers) 0}}<div class="table-wrap"><table class="data-table"><caption class="visually-hidden">Current offer evidence for the watch preview</caption><thead><tr><th scope="col">Retailer</th><th scope="col">Price</th><th scope="col">Offer conditions</th><th scope="col">Stock</th><th scope="col">Observed</th></tr></thead><tbody>{{range .ProductOffers}}<tr><th scope="row">{{.Retailer}}</th><td>{{price .AmountMinor .Currency .Scale}}</td><td>{{.OfferKind}} · {{.Eligibility}}{{if gt .MinimumQty 1}} · {{.MinimumQty}} listing packs{{end}}</td><td>{{.Stock}}</td><td>{{timestamp .ObservedAt}}</td></tr>{{end}}</tbody></table></div>{{else}}<p>No fresh validated offer is available from an approved exact listing. Saving a watch does not create retailer data or send an alert.</p>{{end}}</section>{{end}}
+
+  {{if .IsWatchForm}}
+  <section class="auth-card data-form" aria-labelledby="watch-form-title">
+    <h2 id="watch-form-title">{{if .IsWatchEdit}}Alert conditions{{else}}Alert conditions{{end}}</h2>
+    <form method="post" action="{{.FormAction}}">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      {{if .IsWatchEdit}}<input type="hidden" name="expected_rule_version" value="{{.ExpectedRuleVersion}}"><input type="hidden" name="product_id" value="{{.ProductID}}"><p>Product: <strong>{{.ProductName}}</strong></p>{{else}}<label for="watch-product">Product</label><select id="watch-product" name="product_id" required><option value="">Choose a product</option>{{range .Products}}<option value="{{.ID}}"{{if eq $.ProductID .ID}} selected{{end}}>{{.Name}}</option>{{end}}</select>{{end}}
+      <label for="target-price">Target price in rand (optional)</label><input id="target-price" name="target_price" inputmode="decimal" placeholder="99.99" value="{{.TargetPrice}}" aria-describedby="target-help">
+      <label for="drop-percentage">Relative price decrease percent (optional)</label><input id="drop-percentage" name="drop_percentage" inputmode="numeric" pattern="[1-9][0-9]?" maxlength="2" placeholder="10" value="{{.DropPercentage}}" aria-describedby="target-help">
+      <label for="watch-condition">When both rules are set</label><select id="watch-condition" name="condition_operator"><option value="any"{{if or (eq .ConditionOperator "") (eq .ConditionOperator "any")}} selected{{end}}>Alert when either condition is met</option><option value="all"{{if eq .ConditionOperator "all"}} selected{{end}}>Alert when both conditions are met</option></select>
+      <label for="notification-channel">Notification destination</label>{{if and .IsWatchEdit (eq .NotificationChannel "webhook") (not .WebhookConfigured)}}<input type="hidden" name="notification_channel" value="webhook"><p>The saved webhook preference is unavailable until this instance has a webhook configured.</p>{{else}}<select id="notification-channel" name="notification_channel"><option value="in_app"{{if or (eq .NotificationChannel "") (eq .NotificationChannel "in_app")}} selected{{end}}>Show in this application</option>{{if .WebhookConfigured}}<option value="webhook"{{if eq .NotificationChannel "webhook"}} selected{{end}}>Send to configured webhook</option>{{end}}</select>{{end}}
+      <p id="target-help" class="auth-help">Set a target price, a relative decrease, or both. Member and multibuy offers are excluded unless explicitly selected.</p>
+      <label class="check-row"><input name="allow_member" type="checkbox"{{if .AllowMember}} checked{{end}}> Include member prices in this watch</label>
+      <label class="check-row"><input name="allow_multibuy" type="checkbox"{{if .AllowMulti}} checked{{end}}> Include multibuy basket prices</label>
+      <button class="button button-primary" type="submit">{{if .IsWatchEdit}}Save watch changes{{else}}Save watch{{end}}</button>
+    </form>
+    <a class="text-link" href="/watches">Cancel</a>
+  </section>
+  {{end}}
+
+  {{if eq .Path "/sources"}}
+    {{if gt (len .Sources) 0}}
+    <div class="table-wrap"><table class="data-table"><caption class="visually-hidden">Retailer source status and operator controls</caption><thead><tr><th scope="col">Retailer</th><th scope="col">Host and capability</th><th scope="col">Assessment</th><th scope="col">Last success</th><th scope="col">Last failure</th><th scope="col">Next permitted check</th><th scope="col">Operation</th></tr></thead><tbody>
+    {{range .Sources}}<tr><th scope="row">{{.Retailer}}<span class="table-subtext">Parser {{.ParserVersion}} · minimum interval {{.MinimumInterval}} ms</span></th><td><code>{{.Host}}</code><span class="table-subtext">{{if .CapabilitiesKnown}}Manual URL: {{if .ManualURL}}yes{{else}}no{{end}} · Search: {{if .Search}}yes{{else}}no{{end}} · Watch: {{if .Watch}}yes{{else}}no{{end}} · Special terms: {{if .SpecialTerms}}yes{{else}}no{{end}}{{else}}Capabilities unknown{{end}}</span></td><td>{{.Assessment}}{{if .AssessmentRef}}<span class="table-subtext">{{.AssessmentRef}} · {{timestamp .AssessmentAt}}</span>{{end}}</td><td>{{timestamp .LastSuccessAt}}</td><td>{{if .LastFailure}}{{.LastFailure}}{{else}}—{{end}}</td><td>{{timestamp .NextAllowedAt}}</td><td>{{if .Enabled}}<form class="inline-form" method="post" action="/sources/{{.ID}}/enabled"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><input type="hidden" name="enabled" value="false"><button class="button button-secondary" type="submit">Pause source</button></form>{{else if eq .Assessment "approved"}}<form class="inline-form" method="post" action="/sources/{{.ID}}/enabled"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><input type="hidden" name="enabled" value="true"><button class="button button-secondary" type="submit">Enable approved source</button></form>{{else}}Unavailable until approved{{end}}</td></tr>{{end}}
+    </tbody></table></div><p class="auth-help">Enabling changes only the operational switch. It requires an existing approved assessment and never grants permission. No retailer source is currently approved or enabled, so the application will not fetch retailer pages.</p>
+    {{else}}
+    <section class="empty-state"><div class="empty-mark" aria-hidden="true">lp</div><div><h2>No sources are configured</h2><p>Retailer sources remain unavailable until their policies and technical behavior are assessed and approved.</p></div></section>
+    {{end}}
+  {{end}}
+
+  {{if eq .Path "/deals"}}
+    {{if gt (len .Deals) 0}}{{template "deals-table" .}}{{else}}<section class="empty-state"><div class="empty-mark" aria-hidden="true">lp</div><div><h2>No verified offers</h2><p>There are no fresh, exact, public, in-stock offers from an enabled source. This does not mean that no retailer has a deal.</p></div></section>{{end}}
+  {{end}}
+
+  {{if eq .Path "/activity"}}
+    {{if gt (len .Activity) 0}}
+    <div class="table-wrap"><table class="data-table"><caption class="visually-hidden">Recent application activity</caption><thead><tr><th scope="col">Time</th><th scope="col">Type</th><th scope="col">Subject</th><th scope="col">Status</th><th scope="col">Detail</th></tr></thead><tbody>{{range .Activity}}<tr><td>{{timestamp .At}}</td><td>{{.Kind}}</td><th scope="row">{{.Subject}}</th><td>{{.Status}}</td><td>{{.Detail}}</td></tr>{{end}}</tbody></table></div>
+    {{if .HasNextPage}}<nav class="page-pagination" aria-label="Activity pages"><a href="{{.NextPageURL}}">Older activity</a></nav>{{end}}
+    {{else}}<section class="empty-state"><div class="empty-mark" aria-hidden="true">lp</div><div><h2>No activity yet</h2><p>Checks, source status changes and alert episodes will appear here.</p></div></section>{{end}}
+  {{end}}
+
+  {{if eq .Path "/settings"}}
+  <section class="auth-card settings-resource" aria-labelledby="memory-status-title"><h2 id="memory-status-title">Application memory</h2>{{if .ResourceStatus}}<p>Current application cgroup use: {{megabytes .ResourceStatus.CurrentBytes}} MB decimal ({{.ResourceStatus.CurrentBytes}} bytes).</p><p>Background work: {{if .ResourceStatus.Paused}}paused while memory pressure clears{{else}}available within the configured resource gate{{end}}. Pause threshold: {{megabytes .ResourceStatus.SoftLimit}} MB; resume below {{megabytes .ResourceStatus.ResumeAt}} MB.</p>{{else if .ResourceUnavailable}}<p>Current cgroup memory use is unavailable. Background work fails closed when the resource metric cannot be read.</p>{{else}}<p>Resource telemetry is not configured for this process.</p>{{end}}<p class="auth-help">This is the application container cgroup reading. It does not measure total Raspberry Pi use or certify the whole-host memory limit.</p></section>
+  {{if .ShowNotificationTest}}<section class="auth-card" aria-labelledby="notification-test-title"><h2 id="notification-test-title">Notification destination</h2><p>Send a fixed test message to the configured webhook. This does not create a price alert.</p><form method="post" action="/settings/notifications/test"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button class="button button-secondary" type="submit">Send test notification</button></form></section>{{else}}<p class="auth-help">No notification webhook is configured. Price alerts remain available in the application.</p>{{end}}
+  <section class="auth-card settings-password" aria-labelledby="password-title">
+    <h2 id="password-title">Change administrator password</h2>
+    <form method="post" action="/settings/password">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <label for="current-password">Current password</label><input id="current-password" name="current_password" type="password" autocomplete="current-password" required maxlength="128">
+      <label for="new-password">New password</label><input id="new-password" name="new_password" type="password" autocomplete="new-password" required minlength="14" maxlength="128">
+      <label for="confirm-password">Confirm new password</label><input id="confirm-password" name="password_confirm" type="password" autocomplete="new-password" required minlength="14" maxlength="128">
+      <button class="button button-primary" type="submit">Change password</button>
+    </form>
+    <p class="auth-help">Changing the password signs out every active session. Use <code>make backup BACKUP=/data/backups/name.sqlite</code> to create a live database snapshot.</p>
+  </section>
+  {{end}}
+</main>
+{{end}}
+
+{{define "deals-table" -}}
+<div class="table-wrap"><table class="data-table"><caption class="visually-hidden">Verified current offers</caption><thead><tr><th scope="col">Product</th><th scope="col">Retailer</th><th scope="col">Price</th><th scope="col">Stock</th><th scope="col">Observed</th></tr></thead><tbody>{{range .Deals}}<tr><th scope="row">{{.ProductName}}</th><td>{{.Retailer}}</td><td>{{money .AmountMinor}}</td><td>{{.Stock}}</td><td>{{timestamp .ObservedAt}}</td></tr>{{end}}</tbody></table></div>
+{{end}}

@@ -4,8 +4,8 @@
 Authority order:
 1. Explicit current user request and repository permissions.
 2. `docs/product/PRD.md`, `UX-SPEC.md`, `ACCEPTANCE.md`.
-3. `docs/technical/ARCHITECTURE.md`, `DATA-CONTRACTS.md`, `ADRS.md`, `IMPLEMENTATION-PLAN.md`, `VALIDATION.md`.
-4. Approved active Priority → Batch → Slice plan and reviewed decisions.
+3. `docs/technical/ARCHITECTURE.md`, `DATA-CONTRACTS.md`, `ADRS.md`, and `VALIDATION.md`.
+4. `docs/plans/IMPLEMENTATION-PLAN.md`, its execution plan, and approved active Priority → Batch → Slice plans with reviewed decisions.
 5. Actual source, tests and the triggered `.agents/skills/<name>/SKILL.md`.
 
 Skills define **how to work**, never new product requirements. Use [skill registry](.agents/skills/README.md) to load only relevant ones; don't preload all skills in every context. A skill cannot override PRD security, truthful pricing, source permission or memory constraints.
@@ -25,7 +25,7 @@ Skills define **how to work**, never new product requirements. Use [skill regist
 - Model: plan → implement (multiple dependency-safe slices per run) → independent read-only engineering review → independent read-only acceptance testing → repair/recheck → local batch/final certification.
 - Implementation and review must reference PRD FR/NFR, UX U and acceptance AC IDs. Do not self-approve independent gates.
 - Risks PRICE/SOURCE/SEC/AUTH/DATA/CONC/PERF/DEPLOY require strict evidence.
-- Test with actual implemented **local** scripts/commands only; plans describe future `make` targets that may not exist yet. Missing test harness/tool is Blocked, not Pass.
+- Test with actual implemented **local** scripts/commands only. Missing test harness/tool is Blocked, not Pass.
 - Do **not** add or modify `.github/workflows/*`; GitHub CI/CD is not the validation route. Build/test/profile locally and record candidate SHA/results.
 - Do not modify remote repos, push, merge or deploy without the user's authorization. GitHub source read and skill provenance are permitted when researching a skill.
 - Never commit credentials, household/private data, captured restricted retailer pages or confidential source material copied from private repositories.
@@ -38,4 +38,4 @@ Skills define **how to work**, never new product requirements. Use [skill regist
 - Raspberry Pi profiling/release → `pi-memory-certification`, `test-execution`, independent review/testing.
 - Feature delivery → `plan-backlog-item`, `implement-backlog-plan`, `deliver-backlog-item`, `deliver-slice`.
 
-See `docs/skills/TRANSFER-AUDIT.md` for repository scan, upstream lineage and exclusions. No project code has yet been implemented merely because skills have been imported.
+See `docs/skills/TRANSFER-AUDIT.md` for repository scan, upstream lineage and exclusions. The implementation and external acceptance gates are tracked in `docs/plans/IMPLEMENTATION-PLAN-EXECUTION.md`; imported skills are guidance, not delivery evidence.

@@ -1,0 +1,48 @@
+{{define "auth" -}}
+<!doctype html>
+<html lang="en-ZA">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>{{.Title}} · leanPrice</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+  </head>
+  <body>
+    <main class="auth-shell" id="main-content">
+      <a class="brand" href="/" aria-label="leanPrice home"><span class="brand-mark" aria-hidden="true">lp</span><span>leanPrice</span></a>
+      <section class="auth-card" aria-labelledby="auth-title">
+        <p class="eyebrow">Private local access</p>
+        <h1 id="auth-title">{{.Heading}}</h1>
+        <p>{{.Description}}</p>
+        {{if .Error}}<p class="form-error" role="alert">{{.Error}}</p>{{end}}
+        {{if eq .Mode "setup"}}
+        <form method="post" action="/setup" autocomplete="on">
+          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+          <label for="setup-token">One-time setup token</label>
+          <input id="setup-token" name="setup_token" type="password" autocomplete="one-time-code" required maxlength="64">
+          <label for="username">Administrator name</label>
+          <input id="username" name="username" type="text" autocomplete="username" required minlength="3" maxlength="40" pattern="[A-Za-z0-9_.-]+">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="new-password" required minlength="14" maxlength="128">
+          <label for="password-confirm">Confirm password</label>
+          <input id="password-confirm" name="password_confirm" type="password" autocomplete="new-password" required minlength="14" maxlength="128">
+          <button class="button button-primary" type="submit">Create administrator</button>
+        </form>
+        <p class="auth-help">Read the one-time token from the protected <code>/data/setup-token</code> file on this host. Remove access to that file after setup.</p>
+        {{else}}
+        <form method="post" action="/login" autocomplete="on">
+          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+          <label for="username">Administrator name</label>
+          <input id="username" name="username" type="text" autocomplete="username" required maxlength="80">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256">
+          <button class="button button-primary" type="submit">Sign in</button>
+        </form>
+        {{end}}
+      </section>
+      <p class="page-footer">leanPrice keeps your catalog and price history on this instance.</p>
+    </main>
+  </body>
+</html>
+{{end}}

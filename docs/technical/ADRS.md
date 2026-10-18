@@ -1,8 +1,8 @@
 # leanPrice — Architecture Decision Records (ADRs)
-**Status:** Proposed decisions for implementation baseline, 2026-10-18  
-**Review:** v1.1 product/technical contract alignment; decisions remain design-only and unmeasured.  
+**Status:** Accepted design decisions with implementation in progress, 2026-10-19  
+**Review:** v1.1 product/technical contract alignment; implementation, source approval and resource evidence are tracked separately.  
 **Dependency:** [Product PRD](../product/PRD.md) merged to main before these records were created.  
-**Change discipline:** every reversal requires a new ADR that supersedes the old one, product-impact review and updated implementation plan/acceptance tests. “Accepted” here means design baseline, **not performance-validated deployment**.
+**Change discipline:** every reversal requires a new ADR that supersedes the old one, product-impact review and updated implementation plan/acceptance tests. “Accepted” means design baseline, **not independently reviewed or performance-validated deployment**. See [the execution ledger](../plans/IMPLEMENTATION-PLAN-EXECUTION.md) for implemented and blocked decisions.
 
 ## ADR-001: Original leanPrice implementation in Go
 **Decision:** Create original source in `Onellan/leanPrice` using Go, Chi, `html/template`, HTMX and Tailwind compiled at build time. No PriceBuddy code import/translation.

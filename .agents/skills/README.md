@@ -2,7 +2,7 @@
 
 This directory contains reusable skill guidance ported/adapted from the owner's Tockr/ActualPlus repositories, an imported framework-agnostic frontend skill with supporting references, and leanPrice-specific skills derived from the project's product and technical contracts. The skill taxonomy follows `SKILL.md` + YAML frontmatter.
 
-**Skills do not supersede** [leanPrice PRD](../../docs/product/PRD.md), [acceptance](../../docs/product/ACCEPTANCE.md), [architecture](../../docs/technical/ARCHITECTURE.md) or [implementation plan](../../docs/technical/IMPLEMENTATION-PLAN.md). Read only skills triggered by the current task.
+**Skills do not supersede** [leanPrice PRD](../../docs/product/PRD.md), [acceptance](../../docs/product/ACCEPTANCE.md), [architecture](../../docs/technical/ARCHITECTURE.md) or [implementation plan](../../docs/plans/IMPLEMENTATION-PLAN.md). Read only skills triggered by the current task.
 
 ## Workflow skills (9)
 | Skill | When to use |

@@ -1,5 +1,5 @@
 # leanPrice — Technical Architecture and Engineering Standard
-**Baseline:** v1.1 design proposal, documentation only | **Reviewed:** 2026-10-18 | **Authored after product merge:** `15c53baff00a7eaffa028ceb5e9d73938fb6ff28`  
+**Baseline:** v1.1 design contract; local implementation is in progress, external source and Pi certification gates remain open | **Reviewed:** 2026-10-19 | **Authored after product merge:** `15c53baff00a7eaffa028ceb5e9d73938fb6ff28`  
 **Product source of truth:** [PRD](../product/PRD.md), [UX](../product/UX-SPEC.md), [Acceptance](../product/ACCEPTANCE.md)  
 **Repository:** https://github.com/Onellan/leanPrice  
 **Author perspective:** Principal/Senior Solutions Architect, Staff Go Engineer, Security Architect, UX Architect and SRE.
@@ -55,6 +55,8 @@ flowchart TB
 | Metrics | runtime/cgroup sampling + optional guarded `/metrics` | No mandatory Prometheus |
 | Packaging | Multi-stage Docker (build x86/ARM64; deploy ARM64) | Final scratch/distroless or minimal Alpine after CA/tz tests |
 
+**Current pins and implementation:** Go 1.27.2, Chi 5.5.0, HTMX 2.0.11 and Tailwind CLI/Tailwind CSS 4.3.0. SQLite schema version 4 includes backup/restore, authentication, centralized safe-fetch policy, deterministic extraction/matching/pricing, a one-worker durable scheduler, memory backpressure, watch evaluation/outbox with per-watch notification preference, source pause/approval-gated enable with audit, bounded keyset pagination for products/history/activity, and local product/watch workflows. Settings shows the current app cgroup reading; watch setup/edit includes a no-send validated-offer preview; product detail includes a bounded sampled price chart. No retailer adapter is approved or enabled. URL-add confirmation and webhook endpoint configuration remain incomplete; the configured webhook has an explicit test action. Independent UX/security reviews and actual Pi measurements remain open. See the [execution plan](../plans/IMPLEMENTATION-PLAN-EXECUTION.md) and [batch evidence](../evidence/).
+
 Dependency updates require pinned versions, license report and local tests; versions not committed to this doc are not assumed. No npm scripts/container at runtime.
 
 ## 4. Modules and package boundaries
@@ -80,6 +82,7 @@ internal/
 web/
   templates/          layouts, screens, HTMX partials
   static/             built CSS, pinned HTMX, small chart assets
+  styles/             Tailwind input compiled only in the image build stage
 migrations/
 testdata/
   fixtures/           approved/sanitized retailer HTML and JSON
@@ -250,10 +253,10 @@ Follow [UX-SPEC](../product/UX-SPEC.md): mobile-first layouts, full-page SSR fal
 - **Operational:** migration/drill, backup restore, upgrade/restart, source failure.
 - **Local only:** no GitHub Actions and no external hosted validation; record exact commands/results in repository.
 
-See [VALIDATION.md](VALIDATION.md). The roadmap and per-slice enforcement live in [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
+See [VALIDATION.md](VALIDATION.md). The roadmap and per-slice enforcement live in [IMPLEMENTATION-PLAN.md](../plans/IMPLEMENTATION-PLAN.md).
 
 ## 17. Architecture risks and active ADRs
 **Unknown and gated:** ability to scrape each candidate retailer via permitted HTTP; acceptable dynamic-page coverage; actual Go memory use on Pi; optimal SQLite driver/pool tuning; remote provider availability and costs. These uncertainties are **spikes** with stop/go decisions, not optimistic implementation assumptions. [ADRs](ADRS.md) document decisions and reversibility.
 
 ## 18. Implementation sequence
-Architectural sequencing is subordinate to product sequencing: PRD/UX/acceptance already merged into `main`; this design exists afterward. Delivery follows **Priority → Batch → Slice**, with physical local gates per slice, continuous lightweight peer review and independent batch/final certification. Full detailed plan in [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
+Architectural sequencing is subordinate to product sequencing: PRD/UX/acceptance already merged into `main`; this design exists afterward. Delivery follows **Priority → Batch → Slice**, with physical local gates per slice, continuous lightweight peer review and independent batch/final certification. Full detailed plan in [IMPLEMENTATION-PLAN.md](../plans/IMPLEMENTATION-PLAN.md); execution status in [IMPLEMENTATION-PLAN-EXECUTION.md](../plans/IMPLEMENTATION-PLAN-EXECUTION.md).

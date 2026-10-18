@@ -1,5 +1,5 @@
 # leanPrice — Local Validation, Security and Release Runbook
-**Version:** 1.1 | **Status:** **planned checks only**. No application exists yet, so none of these tests has been executed.  
+**Version:** 1.3 | **Status:** workstation tests, analysis, contract/fixture suites, backup drill, ARM64 cross-build and image build execute locally; retailer, independent-review and Pi release gates remain blocked.  
 **Contract:** [PRD](../product/PRD.md), [Acceptance](../product/ACCEPTANCE.md), [Architecture](ARCHITECTURE.md), [Data contracts](DATA-CONTRACTS.md).
 
 ## 1. Philosophy
@@ -12,24 +12,27 @@ Run all validation **locally** on development workstation and Raspberry Pi. No G
 
 All lanes obey the same acceptance matrix and evidence policy. The technical plan may be merged without execution evidence, but releases cannot.
 
-## 2. Planned local commands (not yet in repository)
+## 2. Implemented local commands
 ```bash
-make bootstrap        # pinned Go/Tailwind/HTMX tool and dependency instructions
-make fmt              # gofmt / template formatting
-make lint             # go vet, staticcheck (pinned), lint checks
-make test             # all unit tests
-make test-integration # temp SQLite, fixtures, httptest routes
-make test-security    # SSRF, CSRF, auth, escaping, dependencies
-make test-contract    # price/match/alert golden fixtures
+make bootstrap        # verify pinned Go and download modules
+make fmt              # format Go source
+make lint             # go vet and pinned staticcheck
+make test             # all current Go tests
+make test-integration # current httptest SSR/HTMX and health tests
+make test-security    # current security-header and request-ID tests
+make test-contract    # pricing, identity and watch contract tests
+make test-fixtures    # full Go suite with checked-in deterministic fixtures
+make backup-drill     # WAL-safe backup, tamper rejection and restore tests
+make pi-baseline      # read-only host baseline; requires PI_SSH_TARGET=user@host
+make release-check    # all local release gates, then report external blockers
+make vuln             # pinned govulncheck
+make asset-audit      # npm audit of the locked build-only Tailwind dependency tree
+make license-report   # Go dependency license report
 make build-arm64      # CGO_ENABLED=0 GOOS=linux GOARCH=arm64 build
-make image-arm64      # local arm64 image build
-make smoke-pi         # LAN-only health, login, watch workflow on actual Pi
-make perf-pi          # normal/stress/local search and scraper profiles
-make soak-pi          # 24h safe synthetic+approved workloads
-make backup-drill     # concurrent backup, clean restore, integrity check
-make release-check    # summary of all local gates; no GitHub Actions
+make image-arm64      # local ARM64 image build
 ```
-Each target must become a real, portable script with nonzero exit on failure. Never label placeholder commands as completed.
+
+The foundation results are recorded in [B01 evidence](../evidence/B01/toolchain-and-foundation.md), with current batch evidence linked from [the execution plan](../plans/IMPLEMENTATION-PLAN-EXECUTION.md). `make release-check` runs workstation gates but exits with status 2 while required external evidence is absent. `make pi-baseline` exits with status 2 when no target is configured. Actual Pi smoke, performance and 24-hour soak workflows are not implemented or executed here; ARM64 cross-build and workstation container smoke do not replace them.
 
 ## 3. Per-slice Definition of Done
 - Code and tests reference specific `FR-*`, `NFR-*`, `AC-*` and/or `U-*` IDs.
@@ -54,7 +57,7 @@ Fresh independent assessment against **all** product musts, security/identity/al
 | HTTP integration | httptest server with redirect, 403, 429, timeout, large body, gzip bomb | Yes |
 | SQLite integration | migrations, FK, unique constraints, queue leases, WAL backup, transactions | Yes |
 | UI integration | SSR/HTMX route, auth/CSRF, accessibility attributes, forms and persisted state | Yes |
-| Notification | mock webhook 2xx/4xx/5xx/drop+retry, idempotency header | Yes |
+| Notification | mock webhook alert retry/idempotency and fixed test payload; authenticated test route is CSRF protected and errors are redacted | Yes |
 | Security adversarial | SSRF, XSS, CSRF, session fixation, missing privileges, host header/proxy | Yes |
 | ARM64 smoke | image startup, health, catalog, source status, file permissions, migrations | Local Pi |
 | Soak/resource | synthetic 100 products × 5 listings, 24h, search/UI/backup/failure overlap | Local Pi |
@@ -177,4 +180,4 @@ Go/no-go decision and rationale:
 ## 13. Operational acceptance / rollback checklist
 Before deploy: verified image + backup + free disk + stopped old instance. During: migrations, readiness and UI smoke under Pi budget. After: memory/queue/alerts check, compare DB counts, verify webhook setup. Failure: stop container, capture redacted diagnostics, restore from validated backup where needed, restart prior compatible image and record remediation.
 
-**Important:** This document prescribes validation; the only completed action to date is documentation authoring, not validation or software deployment.
+**Current result:** workstation validation is implemented and recorded in the batch execution evidence. Pi measurements, approved-source acceptance, independent certification and deployment have not been completed.
