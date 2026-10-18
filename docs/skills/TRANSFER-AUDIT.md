@@ -32,7 +32,7 @@ The following repository default-branch trees were queried using authenticated G
 | AgentDelivery | main | No SKILL.md library; `AGENTS.md` contains durable agent execution guidance |
 | **tockrims** | main | **16 shared agent skills** |
 | **tockrPlatform** | main | **17 shared agent skills** |
-| **ActualPlus** | main | **large agent library**: shared workflow/engineering + finance/SA tax/accounting specialties (59 SKILL.md files in tree; counted by discovered paths) |
+| **ActualPlus** | main | **large agent library**: shared workflow/engineering + finance/SA tax/accounting specialties (58 SKILL.md files in tree; counted by discovered paths) |
 | leanPrice | main | No agent skills before transfer |
 
 Inventory numbers are source-tree `SKILL.md` occurrences under `.agents/skills/*/`; source trees were not truncated in their API responses. No private-repo AGENTS.md or domain-only skill is copied verbatim.
