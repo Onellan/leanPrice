@@ -1,5 +1,5 @@
 # leanPrice — UX and Interaction Specification
-**Version:** 1.0 | **Status:** Product baseline | **Parent:** [PRD](PRD.md)  
+**Version:** 1.1 | **Status:** Product baseline | **Parent:** [PRD](PRD.md)  
 **Brand:** leanPrice | **Design voice:** calm, evidence-led, resource-conscious  
 **Surfaces:** desktop browser and mobile browser; self-hosted LAN-first.
 
@@ -8,6 +8,7 @@
 - No visual or verbal cue should imply a deal was verified unless evidence supports it.
 - Technical health should be inspectable but never obscure a simple price comparison.
 - The UI must remain responsive when a source is blocked, offline, slow or paused for memory.
+- A pasted URL is fetched only when its source is assessed, approved and enabled; manual submission never bypasses that gate.
 - Every destructive action has a confirmation/undo path where possible.
 - Use semantic server-rendered HTML; HTMX provides enhancements, not indispensable navigation.
 
@@ -37,8 +38,8 @@ Input label “Search products”; example “Domestos Lavender 750 ml”. Resul
 Search result states: loading/scheduled, no results, search provider unavailable, source disabled, source disallowed, quota exhausted, partial results. Show per-retailer coverage. Search must never promise it indexed “every website.”
 
 ### Add product / URL wizard
-1. Paste URL; immediately validate scheme, hostname and permitted domain, without fetching unvalidated targets.
-2. Show extraction preview: item title, brand, quantity/pack, image if trusted/allowed, currency/price, source and timestamp, extraction confidence.
+1. Paste URL; immediately validate scheme, hostname and approved/enabled source, without fetching unvalidated or unapproved targets.
+2. Show extraction preview: item title, brand, quantity/pack, currency/price, source and timestamp, extraction confidence. R1 does not load retailer images directly in the user's browser; any later image support must use an assessed, safe delivery path.
 3. Choose exact existing product, create a new canonical product, or “not the same.” Require user confirmation if identity data is incomplete.
 4. Offer optional watch threshold and schedule; save without forcing an alert rule.
 5. Show success state with canonical product and initial collection status; source limitations are visible.
@@ -48,10 +49,10 @@ Back/cancel actions do not create partially attached listings. A retry is bounde
 ### Product detail
 Header: **Domestos Lavender — 750 ml — 1 bottle** (illustrative). Tabs/sections: Offers, History, Listings, Watch settings. Display current comparable offers in consistent currency and eligibility context, with independent sections for member-only/multibuy/non-equivalent/unknown. Default sort chooses known in-stock, fresh exact matches first; user can show unknown stock separately.
 
-Offer row: retailer, standard/current price, contextual struck-through *retailer claim*, promotion conditions, stock, observation age, unit price when eligible, external link. Each value exposes source and timestamp by opening “Details.”
+Offer row: retailer, standard/current price, contextual struck-through *retailer claim*, promotion conditions, stock, observation age, unit price when eligible, external link. A multibuy total is shown with its minimum qualifying quantity; its effective per-pack price is never substituted for a single-pack price. Each value exposes source and timestamp by opening “Details.”
 
 ### Watch rules
-Form controls: canonical product or listing scope; **public-only** (default) or eligible member deals; target price ZAR; optional % drop, frequency and notification channel. If both conditions are enabled, UI exposes choice “either”/“both,” default either; backend versioned evaluation contract. Show preview using last valid observation *without sending an alert*. “Send test notification” is a separate, explicit action.
+Form controls: canonical product or listing scope; **public single-pack offers** (default), with explicit member or multibuy eligibility only when the source and qualifying cost are known; target price ZAR; optional % drop, frequency and notification channel. When multibuy is selected, show the full qualifying basket total and quantity and apply the target to that total. Do not compare baskets with different quantities. Coupon offers remain informational and are not alert-eligible in R1. If both price conditions are enabled, UI exposes “either”/“both,” default “either,” matching the versioned evaluation contract. Show preview using the last valid observation *without sending an alert*. “Send test notification” is a separate, explicit action.
 
 ### Deals
 Card headings indicate **“Verified price below target”**, **“Observed price decrease”**, or **“Retailer-labelled promotion”** based on evidence. Do not conflate these terms. Filters include retailer, freshness, promotion condition, product, alert status and stock. Click-to-store links open an external tab with no automatic checkout.
@@ -63,7 +64,7 @@ Each retailer displays capability (manual-URL, search, watch, special-terms), en
 Chronological timeline for saved product, price observation, parser warning, match decision, triggered alert, suppressed duplicate, failed notification and backup/migration. Each has an accessible reason code. Avoid exposing raw retailer response bodies or credentials.
 
 ### Settings
-Sections: Household locale (ZAR/region), Sources, Schedules and concurrency, Notifications, Backups, Security, Resource usage. Default resource profile is “Pi / under 500 MB”; unsupported combinations are rejected with an explanation rather than silently accepted.
+Sections: Household locale (ZAR/region), Sources, Schedules and concurrency, Notifications, Backups, Security, Resource usage. Default resource profile is “Pi / under 500 MB”; unsupported combinations are rejected with an explanation rather than silently accepted. Restore accepts only a documented leanPrice backup, checks version and integrity before replacement, invalidates existing sessions and requires clear confirmation. External notification secrets are re-provisioned from local configuration.
 
 ## 4. Reusable design system
 - **Color:** neutral surfaces for ordinary cards; restrained green only for *verified eligibility*, amber for source uncertainty, red for errors; do not use red sale prices for unconfirmed discounts.
@@ -85,7 +86,8 @@ Sections: Household locale (ZAR/region), Sources, Schedules and concurrency, Not
 | Same brand, different size | “Other size: 1 L; shown separately” | Adding it to 750 ml exact matches |
 | Rate-limited | “Retailer temporarily restricting checks. Next attempt after …” | “Product unavailable” |
 | Blocked/unpermitted | “Automatic tracking is not supported for this site” | “Try bypassing protection” |
-| Unknown stock | “Stock not verified” | “In stock” |
+| Unknown stock | “Stock not verified”; a price alert must carry this qualifier | “In stock” or an unqualified “available” claim |
+| Conditional coupon | “Coupon terms apply; excluded from R1 ranking” | Treating a coupon as a public single-item price |
 | No eligible deal | “No qualifying verified offer currently” | “No deals anywhere” |
 | Partial results | “3 of 5 enabled sources responded” | “All stores checked” |
 
@@ -117,6 +119,10 @@ WCAG 2.2 AA target: high contrast, focus management after partial swaps, errors 
 - U-08: Notification test and real deal send are visibly distinct.
 - U-09: Product detail clearly says when only some retailers are covered; no universal “best price” claim.
 - U-10: Low-memory paused jobs show deferred status with operator controls, without UI freeze.
+- U-11: A 2-for-R50 offer shows R50 for two packs and may show R25 per pack only in a qualifying two-pack comparison; a R30 single-pack offer remains the one-pack price.
+- U-12: An offer with unknown stock can show a qualifying price alert only with “stock not verified”; it is never presented as confirmed in stock or available.
+- U-13: A coupon with incomplete or unsupported basket eligibility appears as conditional information, not as a public ranked offer or R1 alert.
+- U-14: A multibuy watch shows its qualifying quantity and basket total; its target applies to that total, and different-quantity baskets are kept separate.
 
 ## 9. Prototype direction (ASCII, not final UI)
 ```text
@@ -140,4 +146,4 @@ Product C …                          Store Z   Not assessed
 The actual interface must be designed with components/flows first, reviewed against accessibility and correctness criteria, and implemented with server-rendered templates plus progressively enhanced HTMX.
 
 ## 10. Required design deliverables in implementation
-Site map, low/high fidelity desktop/mobile layouts for every primary screen, component inventory, state matrix, responsive rules, copy glossary, screenshot tests and keyboard/accessibility walkthrough. Each page must link back to PRD FR IDs. Designs should document partial failure and staleness, not just happy-path cards.
+Site map, low/high fidelity desktop/mobile layouts for every primary screen, component inventory, state matrix, responsive rules, copy glossary, screenshot tests and keyboard/accessibility walkthrough. Each page must link back to PRD FR IDs and UX U-01–U-14. Designs should document partial failure and staleness, not just happy-path cards.

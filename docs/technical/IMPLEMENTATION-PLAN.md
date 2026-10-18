@@ -1,5 +1,5 @@
 # leanPrice — Detailed Technical Implementation Plan
-**Version:** 1.0 | **Status:** implementation-ready planning baseline, **not executed**  
+**Version:** 1.1 | **Status:** detailed planning baseline; B00 and reviewer sign-offs remain open; **not executed**  
 **Planning basis:** Product PR #1 was merged into `main` at commit `15c53baff00a7eaffa028ceb5e9d73938fb6ff28` **before this technical plan was authored**.  
 **Product contract:** [PRD](../product/PRD.md) · [UX](../product/UX-SPEC.md) · [Acceptance](../product/ACCEPTANCE.md)  
 **Technical contracts:** [Architecture](ARCHITECTURE.md) · [Data/API](DATA-CONTRACTS.md) · [ADRs](ADRS.md) · [Local Validation](VALIDATION.md)  
@@ -8,9 +8,9 @@
 # A. Executive delivery strategy
 
 ## A1. Mandate and design guardrails
-Build an **original leanPrice application**, not a PriceBuddy port. The product watches specific comparable products across assessed South African retailers, saves durable history and notifies users only when reliable fresh pricing qualifies. Product correctness, ethics and resource safety are release blockers.
+Build an **original leanPrice application**, not a PriceBuddy port. The product watches specific comparable products across assessed South African retailers, saves durable history and notifies users only when reliable fresh pricing qualifies. Product correctness, source approval, ethics and resource safety are release blockers.
 
-**Non-negotiable NFR-001:** at every supported workflow (including search, scrape, notification, backup, startup, error retry and upgrade), total attributable Pi-hosted RAM must stay below **500,000,000 bytes**. Default technical implementation begins with a **440 MB decimal Docker container hard limit**, with no additional local service and separately measured host overhead. Any failure/OOM is a release blocker, not permission to raise limits. Normal-operation engineering target <=350 MB peak, subject to evidence.
+**Non-negotiable NFR-001:** at every supported workflow (including search, scrape, notification, backup, startup, error retry and upgrade), total attributable Pi-hosted RAM must stay below **500,000,000 bytes**. The starting design uses a verified **440,000,000-byte container hard limit**, with no additional local service and separately measured attributable use outside that cgroup. Any failure/OOM is a release blocker, not permission to raise limits. The representative normal-workload target is a cgroup peak <=**350,000,000 bytes**, subject to evidence.
 
 **No GitHub CI/CD:** all builds, static analysis, security, integration, accessibility, performance, Pi certification and deployment validation execute locally. Do not add/edit `.github/workflows/*`. Do not claim checks ran until scripts are implemented and actual result recorded.
 
@@ -52,7 +52,7 @@ PRD/UX/Acceptance merged to main [DONE: docs only]
                             |
                        P3-B14 Optional remote renderer/evolution
 ```
-B00 and B01 may run concurrently with clear contracts; B02 and B03 can follow B01 in parallel; remaining batches depend on the specified verified interface/schemas. Retailer feasibility may force a documented MVP scope adjustment before B08.
+B00 and offline portions of B01 may overlap under the proposed contracts. B01 must not enable live fetches; any source-specific work waits for B00 assessment and approval. B02 and B03 can follow B01 in parallel; remaining batches depend on the specified verified interface/schemas. If fewer than two sources pass feasibility, revise the R1 scope before implementation; if none is approved, R1 source-backed refresh is blocked.
 
 ## A3. Execution model — Priority → Batch → Slice
 - **Priority (P0 / P1 / P2 / P3)** groups user value and risk. P0 is MVP, P1 discovery and richer comparisons, P2 broader source and analysis capabilities, P3 optional extensions.
@@ -98,18 +98,18 @@ App dependencies flow *handlers → services → repository interfaces → SQLit
 - Target candidate sources selected by objective likelihood, not a promise of specific retailers. Inspect published terms/robots/policy, public endpoint/JSON-LD/HTML, geographic prices, login/membership, paging and rate limits.
 - Create two distinct sanitized fixture suites if permitted; record all attempted source capabilities, negative cases and parser evidence. Output `docs/evidence/sources/<key>-assessment.md` with approved/unsupported/disallowed.
 - Explore representative household products incl Domestos exact variant, different sizes and promotion terms.
-- Stop criteria: if no compliant HTTP extraction for two sources, choose transparent manual-URL/structured-data MVP and submit scope change to PRD; **do not** add stealth browser bypass.
+- Stop criteria: if fewer than two compliant sources pass, stop for an explicit R1 scope revision; manual URL submission remains limited to the same assessed, approved and enabled sources. If none passes, source-backed R1 refresh is blocked until product scope changes; **do not** add stealth browser bypass.
 
 **S03 — Pi baseline / memory capacity plan**
 - Capture actual Pi OS/cgroup mode/available RAM/Docker versions, existing workload memory, swap behavior and storage. No code release claim.
-- Model cgroup 440 MB limit and 60 MB host-overhead reserve; identify other services that might contend.
+- Model the 440,000,000-byte cgroup limit and 60,000,000-byte attributable-overhead reserve; identify other services that might contend. Verify the enforced byte value with Docker inspection and cgroup files rather than relying on a unit suffix.
 - Output `docs/evidence/B00/pi-baseline.md`, measurement script outline and config assumptions; verify how Pi's Docker parses memory units.
 - Gates: NFR-001, AC-R01/R10 measurement methodology approved; resource budget is provisional until runnable code.
 
 **B00 certification:** product, source-policy and architecture reviewers approve feasible MVP assertions; record unknown coverage explicitly.
 
 ## LP-P0-B01 — Repository scaffold and reproducible local toolchain (G2 part 1)
-**Dependencies:** B00 architecture inputs; no retailer fetching yet.  
+**Dependencies:** proposed B00 architecture inputs; offline scaffolding can proceed while B00 is open, but no source-specific live fetching.  
 **Exit:** ARM64 single Go web service, compiled static assets, no Node.js runtime, local quality gate scripts.
 
 **S01 — Go module, Chi bootstrap and lifecycle**
@@ -123,7 +123,7 @@ App dependencies flow *handlers → services → repository interfaces → SQLit
 - Gate: keyboard/mobile smoke, CSP, no CDN/network frontend requirement, SSR/HTMX full-page compatibility. UX U-06.
 
 **S03 — Secure ARM64 image and Compose baseline**
-- Multi-stage Dockerfile and `compose.yaml`; CGO-free build, unprivileged user, writable `/data`, CA certs, memory cap **440m decimal**, matching swap max, pids cap, stop-old-first update script.
+- Multi-stage Dockerfile and `compose.yaml`; CGO-free build, unprivileged user, writable `/data`, CA certs, verified **440,000,000-byte** memory cap, matching swap max, pids cap, stop-old-first update script. Confirm Docker's configured byte limit from `docker inspect` and cgroup files.
 - `.env.example`, healthcheck, persistent volume, clean permissions, no privileged/docker-socket mounts. No second runtime service.
 - Gate: `docker inspect` cgroup enforcement, ARM64 build/run on Pi, no OOM startup, offline local SSR smoke. AC-O01/R01.
 
@@ -151,7 +151,7 @@ App dependencies flow *handlers → services → repository interfaces → SQLit
 **S03 — Backup, retention and restore**
 - `internal/storage/backup.go`, `scripts/backup-drill.sh`, documented online snapshot method, checksum manifest, strict permissions, integrity check and restore compatibility/stop-the-world protocol.
 - Retention of diagnostics/candidates without losing active alert-linked evidence. Never copy SQLite main DB alone in WAL mode.
-- Gate: backup concurrent with write, clean restore and count checks, disk-full/read-only tests, bad schema rollback. AC-O03/O05/O06/O10.
+- Gate: backup concurrent with write, clean restore and count checks, disk-full/read-only tests, invalid/incompatible artifact rejection without replacing the current DB, restore failure recovery from its safety backup, and forward-upgrade recovery from a prior image plus validated backup. AC-O03/O05/O06/O10/O11.
 
 **S04 — SQLite stress/footprint and migrations review**
 - Synthetic 100-product/500-listing data seeder, query benchmark, hot/cold cache experiments, FKs and WAL checkpoint. Optimize indexes before changing connection pool size.
@@ -195,7 +195,8 @@ App dependencies flow *handlers → services → repository interfaces → SQLit
 **S02 — Price, unit and offer domain types**
 - `internal/pricing/{money,quantity,offer,availability}.go`; integer cents parser for ZAR and locale, rational quantity, expiry, promo classification and in-stock/unknown handling.
 - No float money; reject missing/conflicting, zero, negative, cross-currency price; unit-price only for compatible dimensions/pack counts.
-- Gate: golden AC-P01–P11/P14 + malformed locale input + overflow/precision checks.
+- Record `amount_minor` as the total qualifying basket for `minimum_qty` listing packs; standard and single-pack offers use quantity one. Coupon offers stay informational and outside R1 ranking/alerts. Never round before eligibility or rule evaluation.
+- Gate: golden AC-P01–P11/P14/P15 + malformed locale input + overflow/precision checks, including 2-for-R50 with the single-pack R30 offer preserved.
 
 **S03 — Extractor priority and parser contracts**
 - `internal/extract/{jsonld,embedded,html,normalize,provenance}.go`; prefer Product/Offer JSON-LD, then assessed embedded structured JSON, then approved CSS selectors via goquery.
@@ -205,7 +206,7 @@ App dependencies flow *handlers → services → repository interfaces → SQLit
 **S04 — Canonical matching and review decisions**
 - `internal/match/{normalize,rules,decisions}.go`; exact GTIN subject to sanity, brand, variant and quantity/pack rules; explicit hard mismatch beats fuzzy confidence; manual review.
 - Output ranked exact/possible/rejected with rationale; store manual override/audit and preserve pre-decision observation provenance.
-- Gate: Domestos 750ml vs 1L/Original/twin pack, ambiguous GTIN and Unicode cases. AC-M04–M07.
+- Gate: Domestos 750ml vs 1L/Original/twin pack, GTIN conflict with physical mismatch, audited manual match decisions, and Unicode cases. AC-M04–M07/M10/M11.
 
 **S05 — Observation persistence and failure status**
 - Implement integration service `internal/catalog/refresh.go` that makes one bounded request, parser selection, validation, storage and source health updates; failures do not replace last good history.
@@ -218,8 +219,8 @@ App dependencies flow *handlers → services → repository interfaces → SQLit
 **Exit:** automatic durable refresh with no unbounded memory growth.
 
 **S01 — Retailer registry and governance**
-- `internal/sources/{registry,assessment,health}.go` models manual/search/special capabilities, assessment state, enabled flags, source rate policy and canonical host allowlist. Default unassessed+disabled.
-- Gate: unsupported source cannot fetch or search; disabled source cancels new leases; 403/429 classify accurately. AC-S01/S11/S12.
+- `internal/sources/{registry,assessment,health}.go` models manual/search/special capabilities, assessment state, enabled flags, source rate policy and canonical host allowlist. Default unassessed+disabled; pause is operational state, separate from assessment.
+- Gate: unassessed, review-required, disallowed, unsupported or disabled source cannot fetch; only assessed, approved and enabled sources can receive a lease; 403/429 classify accurately. AC-S01/S11/S12.
 
 **S02 — SQLite job queue and restart leases**
 - `internal/jobs/{queue,lease,worker}.go`; `queued, leased, retry_at, blocked, dead, completed`, unique dedupe key per schedule bucket, bounded pending queue, atomic lease claim and reclaim.
@@ -237,7 +238,7 @@ App dependencies flow *handlers → services → repository interfaces → SQLit
 
 ## LP-P0-B06 — Product, comparison and operator UX (G3 UI)
 **Dependencies:** B01–B05.  
-**Exit:** complete manual URL → confirm → compare/history flow.
+**Exit:** complete assessed/approved/enabled source URL → confirm → compare/history flow.
 
 **S01 — Design system and page shell**
 - `web/templates/{layouts,partials,components}` and compiled CSS tokens; navigation Dashboard/Search/Products/Watches/Deals/Activity/Sources/Settings, mobile/desktop breakpoints, semantic tables, badges and accessible feedback.
@@ -246,11 +247,11 @@ App dependencies flow *handlers → services → repository interfaces → SQLit
 
 **S02 — Product catalog and add URL journey**
 - `internal/httpui/{catalog,add_url}.go`, domain use cases, route validation, extraction preview/confirmation, exact-match selection, no partial on cancel, searchable/paginated catalog.
-- Gate: <=4 primary actions on valid URL after setup, duplicate URL idempotency, unsafe input handled with focus/error and no outbound fetch. FR-001–009, AC-M01–M07, U-01.
+- Gate: <=4 primary actions on an approved/enabled source URL after setup, duplicate URL idempotency, unsafe or unapproved input handled with focus/error and no outbound fetch. FR-001–009, AC-M01–M07, U-01.
 
 **S03 — Product detail, evidence and history**
 - `internal/httpui/product_detail.go`, offer comparison VM: fresh exact public/in-stock default, separate loyalty/multibuy/unknown/stale, source deep link and timestamps. Paginated history table/chart deferred to R2 as per product.
-- Gate: AC-P04–P12, U-02–U-05/U-09; click from offer to retailer is explicit and external.
+- Gate: AC-P04–P12/P15, U-02–U-05/U-09/U-11; multibuy basket total and qualifying quantity are explicit; click from offer to retailer is explicit and external.
 
 **S04 — Dashboard, source health and activity**
 - `internal/httpui/{dashboard,sources,activity}.go`; source capability and last success, job status, error categories, operator pause, settings and resource panel. HTMX status only for bounded check requests.
@@ -267,12 +268,12 @@ App dependencies flow *handlers → services → repository interfaces → SQLit
 - Gate: never alert on stale/unknown member/price parse failure, historical baseline absence or mismatch. AC-A01–A05/A11–A14.
 
 **S02 — Alert outbox and webhook transports**
-- `internal/notify/{outbox,webhook,delivery}.go`; one outbound HTTPS webhook protocol with idempotency key, safe host allowlist and redaction, retry/backoff, delivery state.
+- `internal/notify/{outbox,webhook,delivery}.go`; one outbound HTTPS webhook protocol with idempotency key, a notification-only target policy (separate from retailer fetch rules), exact admin-configured private destination where needed, DNS/redirect revalidation, redaction, retry/backoff and delivery state.
 - Gate: webhook 2xx/429/5xx/drop, dedupe, bounded retries and recovery. AC-A06–A08/A14. Home Assistant/ntfy can be mapped to webhook shape; richer native templates later.
 
 **S03 — Watches, Deals and Settings UI**
 - `internal/httpui/{watches,deals,notification_settings}.go` plus UX partials: create/pause rules, test notification, see verified price/offer conditions, recent deal episodes.
-- Gate: public-only chosen by default, eligible member offers separate, preview vs actual alert explicit, understandable disabled/error states. AC-A09/A10, U-03/U-08.
+- Gate: public single-pack chosen by default, member and multibuy require explicit selection, multibuy target applies to its full qualifying basket, coupons are excluded in R1, unknown-stock price alerts carry a stock-unverified qualifier, preview vs actual alert explicit, understandable disabled/error states. AC-A09/A10/A15/A16, U-03/U-08/U-11–U-14.
 
 **S04 — Combined price-to-alert end-to-end and durability**
 - Deterministic scenario: two exact listings, fresh threshold drop, history records, one alert, recheck no duplicate, recover above target, fall again, send bounded notifications; restart between stages.
@@ -300,7 +301,7 @@ App dependencies flow *handlers → services → repository interfaces → SQLit
 - Build source-parser fixture versioning, safe sample refresh procedure, drift detector on field completeness (not CAPTCHA evasion), rollback/disable mechanism.
 - Gate: old fixture remains valid under known parser version, changed markup triggers explicit parser error.
 
-**Conditional:** If fewer than two are lawfully/reliably feasible, deliver and test general structured-data/manual-URL watcher with clearly limited claims. Create product-PRD change **before** changing a committed R1 promise. B08 must not be marked complete with fabricated integrations.
+**Conditional:** If fewer than two are lawfully/reliably feasible, stop and revise the R1 product scope before implementation. Manual URL submission is still limited to assessed, approved and enabled sources; if none is approved, R1 source-backed refresh is blocked. B08 must not be marked complete with fabricated integrations.
 
 **B08 certification:** source compliance + parser reliability review; signed source approvals.
 
@@ -313,12 +314,12 @@ App dependencies flow *handlers → services → repository interfaces → SQLit
 - Gate: all required contract tests PASS, no block-worthy P0/P1 defects.
 
 **S02 — ARM64 stress/24h soak and memory study**
-- On actual Pi under representative other-container load: cold start, browsing/search, manual fetch, 100 products×5 listings safe synthetic/approved requests, retries, high-volume parsing, notifications, SQLite backup and 24-hour soak.
-- Read cgroup peak/OOM events and host delta; zero OOM; **total attributable Pi memory <500,000,000 bytes**. No disabling advertised features during tests.
+- On actual Pi under representative other-container load: cold start, browsing/search, approved-source URL flow, 100 products×5 listings safe synthetic/approved requests, retries, high-volume parsing, notifications, SQLite backup and 24-hour soak.
+- Read cgroup peak/OOM events and attributable host delta without double-counting; zero OOM; **total attributable Pi memory <500,000,000 bytes** and configured container cap 440,000,000 bytes. No disabling advertised features during tests.
 - Gate: NFR-001–006/010, AC-R01–R12, evidence in `docs/evidence/B09/`; performance baselines and limits documented.
 
 **S03 — Recovery/security/upgrade certification**
-- Perform online backup and clean restore, induced SIGKILL while queue active, storage pressure, migrations, safe upgrade with old container stopped and rollback; inspect secrets/network egress/license/vulnerabilities.
+- Perform online backup and clean restore, induced SIGKILL while queue active, storage pressure, forward-only migrations, safe upgrade with old container stopped and rollback using the prior image plus validated pre-upgrade backup; inspect secrets/network egress/license/vulnerabilities.
 - Gate: NFR-008/009/011/014 and AC-O*/X* satisfied.
 
 **S04 — Independent final review and R1 publishing**
@@ -377,7 +378,7 @@ App dependencies flow *handlers → services → repository interfaces → SQLit
 ## LP-P2-B13 — Coverage, reporting and admin improvements
 - **S01:** prioritized adapters for additional **approved** South African sources; each includes assessment, fixtures, version and rollback; no blanket retailer promise.
 - **S02:** history/price distribution/savings report only when based on independently observed comparable prices; explain sample gaps.
-- **S03:** bounded streaming CSV export and configurable retention under privacy constraints.
+- **S03:** bounded streaming CSV export with formula-safe cells and no secrets, plus configurable retention under privacy constraints (FR-040, AC-O12).
 - **S04:** optional authorized read-only household accounts with page-access review only if product need warrants complexity.
 - **Exit:** Pi memory/backup/security certification repeated; PRD change precedes new major capability.
 
@@ -435,7 +436,7 @@ An implementation run can execute multiple slices but should produce separate co
 - Limit response decompression, timeouts, retries, requests and login/session data.
 - Treat HTML/JSON as untrusted and escape template output; no eval/shelling out.
 - Never store retailer credentials by default; no proxies/CAPTCHA circumvention.
-- Webhook destination is an SSRF concern too; allow safe LAN endpoints (e.g. HA) **only** through separately explicit and tightly scoped user-configured notification endpoint policy, never by weakening retailer-fetch restrictions. Network boundaries for webhooks and retailer fetches are distinct.
+- Webhook destination is an SSRF concern too; allow a private/LAN endpoint only when an administrator configures that exact destination through the separate notification endpoint policy. Revalidate DNS and redirects; never weaken retailer-fetch restrictions. Network boundaries for webhooks and retailer fetches are distinct.
 - Redact sensitive error data; audit access, watch edits, source approvals and deliveries.
 
 ## E5. Design/UX completion checklist per screen
@@ -449,7 +450,7 @@ An implementation run can execute multiple slices but should produce separate co
 
 ## E6. Data and migration checklist
 - Schema change includes indexed queries, FK/unique invariants, migration tests and version check.
-- Backup or rollback strategy identified before release; no unbounded DB transaction/lock.
+- Backup or rollback strategy identified before release; forward-only migrations, restore from a validated pre-upgrade backup with the prior image, no unsupported reverse SQL, and no unbounded DB transaction/lock.
 - Job/outbox idempotency and any reprocessing behavior documented.
 - Retention does not destroy alert evidence; no raw HTML or secrets stored indiscriminately.
 - SQLite WAL/online backups and `PRAGMA integrity_check` validated after faults.
@@ -459,8 +460,8 @@ An implementation run can execute multiple slices but should produce separate co
 ## F1. Release gates
 | Gate | Target batch | Required outcome |
 |---|---|---|
-| G0 | B00 | Approved source feasibility or documented honest fallback; Pi baseline |
-| G1 | Already met docs | Product requirements, UX and acceptance merged before this plan |
+| G0 | B00 | At least two approved sources or an explicit R1 scope revision; no approved source means source-backed refresh is blocked; Pi baseline recorded |
+| G1 | Product/technical baseline | Product, UX, acceptance and technical design docs reviewed; role sign-offs and all runtime evidence remain outstanding |
 | G2 | B01–B03 | Single Go+SQLite runtime, local gate scripts, secure auth/SSRF, tested backup |
 | G3 | B04–B06 | Bounded parser + immutable observation + canonical comparison + full UI |
 | G4 | B07 | Watch rules, episode dedupe, outbox delivery and negative-price suite |
@@ -470,7 +471,7 @@ An implementation run can execute multiple slices but should produce separate co
 ## F2. Risk register and preemptive actions
 | Risk | Likelihood/impact | Prevention / blocker |
 |---|---|---|
-| Dynamic or blocked retailer content | High / high | B00 feasibility first, manual-URL fallback, remote renderer only off-device |
+| Dynamic or blocked retailer content | High / high | B00 feasibility first, URL flow limited to approved sources, remote renderer only off-device |
 | False product equivalence | High / high | Hard variant/size/pack conflicts and manual match confirmation |
 | Promotion/stock ambiguity | High / high | Evidence-backed offer taxonomy, public-only default, fail closed |
 | DOM or decompression memory blowup | Medium / critical | Hard expanded byte cap, parser fixtures and memory watchdog |
@@ -492,13 +493,13 @@ Code compiles on ARM64; targeted unit/integration/security negative tests run lo
 Independent reviewer checks integrated behavior, package/data contracts, security, Pi resource effects and local evidence. All blocking findings remediated. Batch is certified only if evidence shows tests were **actually** run; a reviewer must not mark drafts as pass.
 
 ## F6. Definition of R1 Release
-Must-have FR and NFR acceptance passed; independently reviewed; two validated source adapters *only if proved feasible and permitted* (or product-scope revision explicitly merged first); manual URL flow usable; price alerts correct; no false deal; source failures transparent; recoverable SQLite; actual Pi **<500,000,000 bytes** total attributable runtime memory, 0 OOM, 24h representative soak; documented rollback, local security and access review. Any hard failure blocks release.
+Must-have FR and NFR acceptance passed; independently reviewed; two validated source adapters only if proved feasible and permitted (otherwise an explicit R1 scope revision is merged first); manual URL flow limited to assessed, approved and enabled sources; price alerts correct; no false deal; source failures transparent; recoverable SQLite; actual Pi **<500,000,000 bytes** total attributable runtime memory, configured 440,000,000-byte container cap, 0 OOM and 24h representative soak; documented forward-upgrade recovery, local security and access review. Any hard failure blocks release.
 
 # G. Repository delivery and immediate first implementation steps
 **This plan is documentation, not software implementation.** First coding PR after the plan merges:
 1. Review B00 retailer feasibility and Pi baseline; record evidence without asserting live results.
-2. Implement B01 Go module/Chi routes and minimal SSR shell with local tests.
-3. Build lean ARM64 image and enforce/inspect 440MB cgroup cap.
+2. Implement offline B01 Go module/Chi routes and minimal SSR shell with local tests.
+3. Build lean ARM64 image and enforce/inspect the 440,000,000-byte cgroup cap.
 4. Execute first Pi startup/resource smoke and record actual peak; adjust allocation targets while respecting 500MB contractual max.
 5. Continue with B02 data model and B03 security in separate dependency-safe branches.
 6. Hold B04 live retailer work until B00 site approval; fixture-only development may proceed earlier.
@@ -511,13 +512,13 @@ Must-have FR and NFR acceptance passed; independently reviewed; two validated so
 | Security and privacy | B03/B04/B07 | AC-X/S, SSRF/CSRF/XSS/report |
 | Storage and recovery | B02/B05/B09 | AC-O, backup/migration/kill test |
 | Performance/memory | B01/B04/B05/B09/B12 | AC-R, cgroup peak + host delta + 0 OOM |
-| UX/design/accessibility | B01/B06/B07/B10/B11 | U-01–U-10, mobile/keyboard/SSR tests |
+| UX/design/accessibility | B01/B06/B07/B10/B11 | U-01–U-14, mobile/keyboard/SSR tests |
 | Source compliance | B00/B08/B10/B13 | Dated per-source terms/capability assessments |
 | Architectural conformance | all batches | Package/invariant review, ADR changes, local gate logs |
 | Deployment/supportability | B01/B09 | ARM64 image, runbooks, rollback, verified backups |
 
 ## I. Completion state (as of planning)
-- **Done:** Product PRD, UX specification and acceptance matrix were authored and merged to `main` before this document.
+- **Documented baseline:** product, UX, acceptance and technical contracts are written; implementation, reviewer sign-offs, source approvals and all runtime evidence remain outstanding.
 - **Planned only:** B00–B14; no code, fixtures, performance validation, approved retailer integrations, security certification, or release has been executed.
 - **Unknown:** permissible source coverage, actual Pi memory peaks, final deployment image size and real scraping reliability. These are explicit pre-release verification items.
 

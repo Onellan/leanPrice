@@ -1,5 +1,5 @@
 # leanPrice — Product Requirements Document (PRD)
-**Status:** Product baseline v1.0 — documentation only  
+**Status:** Product baseline v1.1 — documentation only  
 **Owner perspective:** Senior Product Director  
 **Date:** 2026-10-18  
 **Repository:** https://github.com/Onellan/leanPrice  
@@ -10,7 +10,7 @@ leanPrice is a **local-first, self-hosted product discovery, price comparison, h
 
 A user can ask “Find Domestos Lavender 750 ml across supported South African websites, show comparable current offers, track the exact variant and tell me when a meaningful special appears.” leanPrice must distinguish a real promotion from a price-parsing error, a different pack size, a stale observation, a loyalty-only offer or an unavailable item.
 
-**Hard product constraint:** the **whole Pi-hosted leanPrice stack must stay below 500,000,000 bytes of accounted memory at all times during supported operations**, not merely at idle. The engineering plan shall target a lower runtime allowance (e.g., 450 MiB / 471,859,200 bytes), test it under full workflows and explicitly report measurement methodology. This is a capacity constraint, not a claim of proven performance. In case of pressure, pause/slow jobs rather than silently exceeding it. No local Chromium, Selenium, MySQL, Redis, Valkey, Node frontend server or second search container in the default runtime.
+**Hard product constraint:** the **whole Pi-hosted leanPrice stack must stay below 500,000,000 bytes of attributable memory at all times during supported operations**, not merely at idle. The starting design uses a 440,000,000-byte (440 MB decimal) container hard limit and measures any attributable use outside that cgroup against the remaining system budget. The representative normal-workload target is a cgroup peak of no more than 350,000,000 bytes. These are design targets, not performance evidence. In case of pressure, pause or slow jobs rather than silently exceed the cap. No local Chromium, Selenium, MySQL, Redis, Valkey, Node frontend server or second search container in the default runtime.
 
 ## 2. Problem and opportunity
 Consumers must check multiple retailer websites to discover product availability and promotions. Names, pack sizes, prices, loyalty terms and location dependencies make manual comparison error-prone; retailers expose different page structures and occasionally block automated access. Existing heavyweight search/scraping stacks compete for limited Pi RAM. Users need a trustworthy answer with source, observation time and limitations, not an optimistic low number.
@@ -30,7 +30,7 @@ Consumers must check multiple retailer websites to discover product availability
 2. **Like for like.** Compare exact products first; related variants are visibly separate.
 3. **Explainable offers.** Display retailer, URL, timestamp, currency, location, promotion type and caveats.
 4. **Predictable resource use.** A 500 MB maximum is a release gate for every supported workload.
-5. **Private by default.** Local data, no telemetry by default, no external dependency for saved-product tracking.
+5. **Private by default.** Local data and no telemetry by default. Viewing saved products and history does not require a third-party service; price refresh still requires network access to an enabled, approved source.
 6. **Respectful acquisition.** Prefer permissioned feeds/APIs, published metadata and low-rate HTTP; no CAPTCHA bypass or account abuse.
 7. **Simple user journey.** Search → confirm match → watch → compare → act on alert.
 8. **Degrade honestly.** Discovery and difficult retailers can fail independently without corrupting saved history.
@@ -60,12 +60,12 @@ Consumers must check multiple retailer websites to discover product availability
 ## 5. Product boundaries and release slices
 ### MVP (R1) — trustworthy watch list
 - Single administrator, safe setup, dashboard and mobile-responsive UI.
-- Manual product URL add, supported retailer adapters, validation and confirm-before-link.
+- Manual submission of a product URL from an assessed, approved and enabled source; validation and confirm-before-link. A user-submitted URL does not authorize a fetch to an unapproved or disabled source.
 - Canonical products, exact offers, latest observations, comparison with location/terms.
 - Periodic HTTP-only refresh and historical observations.
 - Price-target and percentage-drop rules; notification via one webhook protocol initially.
 - Source health and stale indicators; operator controls, backup/restore and runtime metrics.
-- At least **two** independently validated retailer adapters *if compliant extraction is feasible*; otherwise ship honest manual/structured-data support with documented store coverage. No fictional compatibility.
+- At least **two** independently validated retailer adapters *if compliant extraction is feasible*. If fewer than two pass, revise the release scope and claims before release; any manual URL flow remains limited to assessed, approved and enabled sources. If no source is approved, R1 release is blocked until the source scope or product workflow is revised. No fictional compatibility.
 
 ### R2 — assisted discovery and better promotion intelligence
 - Product-name search spanning validated retailer-search adapters; optional remote search API integration with explicit opt-in.
@@ -86,8 +86,8 @@ Priority notation: **M** must for R1, **S** should for R2, **L** later. IDs are 
 ### Discovery, products and matching
 | ID | Priority | Requirement and observable result |
 |---|---|---|
-| FR-001 | M | Add a product listing by URL, with server-side URL safety checks and supported-domain decision. |
-| FR-002 | M | Extract title, brand, variant, quantity, pack count, barcode/GTIN when available; preserve raw source evidence. |
+| FR-001 | M | Add a product listing by URL only after the corresponding source is assessed, approved and enabled; validate the destination server-side before fetching. |
+| FR-002 | M | Extract title, brand, variant, quantity, pack count and barcode/GTIN when available; preserve bounded provenance (field origin/path, evidence digest and parser version), not full raw source pages. |
 | FR-003 | M | Create/edit a canonical product; attach many retailer listings and mark exact, possible or rejected match. |
 | FR-004 | M | Never auto-merge ambiguous variations; expose confidence and require confirmation for uncertain matches. |
 | FR-005 | M | Search/filter the local catalog by name, brand, size, watched state and retailer. |
@@ -99,7 +99,7 @@ Priority notation: **M** must for R1, **S** should for R2, **L** later. IDs are 
 ### Observation and offers
 | ID | Priority | Requirement and observable result |
 |---|---|---|
-| FR-010 | M | Each observation records listing, source URL, timestamp, status, raw evidence digest, currency and parser version. |
+| FR-010 | M | Each observation records listing, a sanitized source URL, fetch timestamp, status, evidence digest, field provenance, currency and parser version; raw response bodies are not persisted by default. |
 | FR-011 | M | A valid price has explicit currency and positive integer minor units (ZAR cents); zero/negative/parse failure is not a sale. |
 | FR-012 | M | Distinguish current standard price, public special, member-only, multibuy, coupon and unknown; unknown terms cannot be silently treated as general-sale price. |
 | FR-013 | M | Record stock status as in-stock, out-of-stock or unknown, with separate extraction confidence. |
@@ -115,7 +115,7 @@ Priority notation: **M** must for R1, **S** should for R2, **L** later. IDs are 
 | ID | Priority | Requirement and observable result |
 |---|---|---|
 | FR-021 | M | Watch/unwatch a canonical product or an individual retailer listing. |
-| FR-022 | M | Configure a target absolute price and/or relative decline threshold; specify public-only versus eligible loyalty offers. |
+| FR-022 | M | Configure a target absolute price and/or relative decline threshold; fresh public single-pack offers are the default, while member or multibuy eligibility must be explicitly selected with its qualifying basket cost known. |
 | FR-023 | M | Alert only after a fresh, credible price observation meets the rule and applicable product equivalence. |
 | FR-024 | M | Deduplicate repeated equivalent alerts by product, retailer, offer condition and episode; re-arm only after recovery or user-configured policy. |
 | FR-025 | M | Show notification delivery state with retries/backoff and redacted diagnostics. |
@@ -131,13 +131,13 @@ Priority notation: **M** must for R1, **S** should for R2, **L** later. IDs are 
 | FR-031 | M | Show product/listing/adapter state: healthy, stale, unsupported, blocked, error, paused, rate-limited. |
 | FR-032 | M | Configurable check intervals, per-domain throttles, retention and global concurrency. |
 | FR-033 | M | Inspect queue/scheduler status and why a listing was skipped or deferred. |
-| FR-034 | M | Export/import application data with SQLite-consistent backups and migration compatibility checks. |
+| FR-034 | M | Create and restore a versioned application backup using a SQLite-consistent snapshot; check schema compatibility before restore and preserve the current database if validation or restore fails. |
 | FR-035 | M | Readiness, liveness, metrics and human-readable operational errors; logs redact secrets and personal values. |
 | FR-036 | M | Explicit enablement/disablement of each retailer; no default automated scraping of unassessed sources. |
 | FR-037 | S | Operator-controlled “revalidate parser” preview with sanitized fixtures and diagnostics. |
 | FR-038 | M | Settings display local RAM limit and operational throttles; surface when jobs are paused for pressure. |
 | FR-039 | M | Work without network after deployment for local catalog/history/settings (refresh remains unavailable). |
-| FR-040 | S | CSV export of product, retailer, validated price and observation timestamp. |
+| FR-040 | L | CSV export of product, retailer, validated price and observation timestamp, with sensitive values excluded. |
 
 ## 7. Trust, comparisons and pricing semantics
 A **canonical product** is the intended item (brand, range, scent/flavour, quantity, measure, pack count, SKU/GTIN where available). A **listing** is a retailer-specific URL/SKU for that item. An **observation** is the measured state of that listing at a point in time. An **offer** is a price with explicit conditions, currency and validity.
@@ -146,7 +146,7 @@ A **canonical product** is the intended item (brand, range, scent/flavour, quant
 
 **Savings claims:** if a page displays R29.99 against R39.99, show a claimed crossed-out original price only as a retailer-reported claim. A historic reduction requires leanPrice's independently observed previous price and clear timestamps. Do not convert “was R39.99” from unverified page copy into established price history.
 
-**Special classification:** a low price is not automatically a “sale.” If no discount evidence exists, show “Price below your threshold,” not “On sale.” Membership/multibuy/coupon offers are distinct and only comparable if explicitly selected and their effective unit cost calculable.
+**Special classification:** a low price is not automatically a “sale.” If no discount evidence exists, show “Price below your threshold,” not “On sale.” Member and multibuy offers remain distinct and are eligible for comparison or alerts only when explicitly selected and their qualifying basket cost is known. Coupons may be shown as conditional information, but are excluded from ranking and alerts until R2 models the full eligibility and basket cost. Unknown stock is never presented as in stock; a price-only alert may still be sent for an otherwise qualifying offer, but it must say stock is unverified.
 
 **Freshness:** defaults are configurable; suggested current window 36h for daily monitoring. Failed fetches never overwrite the last good reading with zero; UI may show latest known price with “stale” instead of a false current price. Alerts require newly observed data, not cached data reinterpreted as fresh.
 
@@ -154,7 +154,7 @@ A **canonical product** is the intended item (brand, range, scent/flavour, quant
 
 ## 8. Main user journeys with acceptance intent
 1. **Onboard:** Install container, open local URL, create admin credentials, choose ZA settings, optional alerts and default local store context. No retailer scraping begins until an assessed/opted-in adapter is enabled.
-2. **Add by URL:** Paste URL → validate destination → preview extracted data, evidence and permissions/health → choose canonical product or create new → confirm → first check → watch.
+2. **Add by URL:** Paste a URL → validate that its source is assessed, approved and enabled and its destination is safe → preview extracted data, bounded evidence and source health → choose a canonical product or create one → confirm → queue the first check → watch.
 3. **Search by name (R2):** Enter “Domestos 750ml” → show sources and timestamps → list candidate matches grouped by exact/possible/other → refine scent/size → attach chosen listings → configure watch.
 4. **Compare:** Open product → see ranked comparable fresh offers plus excluded/stale/unknown groups → view public/member/multibuy conditions and per-unit prices when valid → open retailer listing.
 5. **Alert:** Configure “public offer at or below R30.00” → job fetches fresh validated offer → show event evidence → send one alert with direct URL and timestamp → record delivery and cooldown.
@@ -181,7 +181,7 @@ Detailed states and wireframes live in [UX-SPEC.md](UX-SPEC.md).
 | ID | Requirement | Release evidence |
 |---|---|---|
 | NFR-001 | **500,000,000-byte** maximum for all leanPrice Pi-hosted runtime processes/containers during supported workflows | Repeatable memory load test, cgroup metrics and no OOM |
-| NFR-002 | Target <=350 MB accounted peak during representative normal load to preserve headroom | ARM64 measurements; target may be revised only by documented product decision, never the hard cap |
+| NFR-002 | Target cgroup peak <=350,000,000 bytes during representative normal load, including cgroup-charged cache, to preserve headroom | ARM64 measurements; target may be revised only by documented product decision, never the hard cap |
 | NFR-003 | One ARM64 Docker service at runtime; no local browser, external database or JS server | Compose review and container inspection |
 | NFR-004 | Search/catalog UI p95 <800 ms locally on warmed data under agreed test load; pages use small payloads | Local benchmarks on Pi; measure and report |
 | NFR-005 | 100 monitored products × up to 5 monitored listings each; completion within 24h at permitted request rates (subject to source availability) | Synthetic + approved integration soak test |
@@ -190,17 +190,17 @@ Detailed states and wireframes live in [UX-SPEC.md](UX-SPEC.md).
 | NFR-008 | SQLite durable after forced termination; restore process proven | Integrity check, recovery and backup drill |
 | NFR-009 | No embedded secrets, third-party telemetry or undocumented external request from runtime | Offline/network audit; configuration review |
 | NFR-010 | No service disruption to other Pi apps under configured resource ceiling | Host observation of contention, OOM and CPU/disk |
-| NFR-011 | Security baseline: authentication, CSRF, CSP, secure session cookies, SSRF prevention, rate limits, dependency review | Local security gate |
+| NFR-011 | Security baseline: authentication, CSRF, CSP, secure session cookies, SSRF prevention for retailer fetches and separately governed notification targets, rate limits, dependency review | Local security gate |
 | NFR-012 | Observability: event logs, job audit, source health, memory samples and actionable failure codes | Operator acceptance suite |
 | NFR-013 | Fully automated local tests/builds; GitHub Actions **not** a validation dependency | Scripts and signed-off local run report |
-| NFR-014 | Backwards-compatible migrations, config-versioning, tested downgrade/backup policy | Fresh install and upgrade drills |
+| NFR-014 | Explicit supported forward-upgrade paths and configuration versions; rollback uses the prior application image plus a validated pre-upgrade backup, not unreviewed reverse SQL | Fresh install, upgrade, failed-upgrade and restore drills |
 
 Memory wording: cgroup-accounted memory is measured on the deployed host, where cache and shared-page charging affect readings. Runtime cap enforcement is set beneath 500 MB to allow operational margin. A hard limit may cause termination; **passing requires zero memory-related terminations** in defined scenarios, not merely “the container was capped.”
 
 ## 11. Retailer feasibility and governance
 **Before enabling an adapter** record: source URL and version/date, public accessibility, terms/robots considerations, permitted retrieval method, requested frequency, supported location/membership context, extraction reliability, failure behaviours and test fixtures. Site policies can change. Never represent a target retailer as supported merely because its name appears in this PRD.
 
-**Acquisition priority:** official feed/API with authorization > publicly exposed structured product metadata > ordinary HTML extraction > permitted site search > optional remote rendering. No CAPTCHA bypass, rotating identities to evade limits, password sharing or circumvention of blocking. Treat 403/429/robots disallow as a stop/backoff signal. Avoid storing product HTML unnecessarily; store bounded redacted evidence for diagnostics. Search APIs require disclosure and opt-in.
+**Acquisition priority:** authorized official feed/API > publicly exposed structured product metadata > ordinary HTML extraction > permitted site search > optional remote rendering. A manually submitted URL remains subject to the same source assessment and destination checks as scheduled fetching. No CAPTCHA bypass, rotating identities to evade limits, password sharing or circumvention of blocking. Treat 403/429 or a disallowing source policy as a stop/backoff signal. Do not retain full product HTML by default; store bounded, redacted provenance for diagnostics. Search APIs require disclosure and opt-in.
 
 ## 12. Privacy, security, and data policy
 - Default private LAN deployment. Strong initial password, session timeout, secure cookie settings for HTTPS, reverse-proxy guidance.
@@ -208,7 +208,8 @@ Memory wording: cgroup-accounted memory is measured on the deployed host, where 
 - Avoid storing passwords for retailer accounts; no checkout automation.
 - SSRF block localhost, RFC1918/ULA/link-local/metadata/loopback and DNS rebinding on user-supplied URLs; allowlist supported retailer domains, redirect revalidation and strict outbound timeouts.
 - A source's HTML/JSON is untrusted: sanitize displayed data, escape all templates, reject remote execution and script inclusion; cap sizes.
-- Export/backup may contain household watch preferences; restrict and document retention/deletion controls.
+- Application backups contain household watch preferences and price history, so treat them as sensitive local files with restrictive permissions and documented deletion controls. Do not include live sessions or webhook credentials; invalidate sessions after restore and require external secrets to be re-provisioned from local configuration.
+- User-configured notification destinations use a separate, explicit endpoint policy. Do not weaken retailer-fetch SSRF controls to permit them; allow a private-network destination only when the administrator has deliberately configured that exact destination.
 - No unauthorized personal data collection. Respect retailer terms, rate limits and IP blocking rather than evading them.
 
 ## 13. Success metrics and instrumentation

@@ -1,5 +1,5 @@
 # leanPrice — Technical Architecture and Engineering Standard
-**Baseline:** v1.0 design proposal, documentation only | **Authored after product merge:** `15c53baff00a7eaffa028ceb5e9d73938fb6ff28`  
+**Baseline:** v1.1 design proposal, documentation only | **Reviewed:** 2026-10-18 | **Authored after product merge:** `15c53baff00a7eaffa028ceb5e9d73938fb6ff28`  
 **Product source of truth:** [PRD](../product/PRD.md), [UX](../product/UX-SPEC.md), [Acceptance](../product/ACCEPTANCE.md)  
 **Repository:** https://github.com/Onellan/leanPrice  
 **Author perspective:** Principal/Senior Solutions Architect, Staff Go Engineer, Security Architect, UX Architect and SRE.
@@ -112,7 +112,7 @@ type AlertTransport interface {
 Capability-specific separate interfaces may be preferable to a mandatory Search method; proof must show unsupported search does not require an empty stub.
 
 ## 5. Data consistency and SQLite operations
-**One authoritative database.** Use migrations with `PRAGMA user_version` or a migrations table, foreign keys ON, WAL mode, `busy_timeout` and measured `synchronous=NORMAL` vs FULL durability trade-off. Default `MaxOpenConns(1)` initially to eliminate competing writers; tune only with justified local performance evidence. Never run long network operations inside SQL transactions; use short BEGIN IMMEDIATE write sections for claim/upsert/alert episode dedupe.
+**One authoritative database.** Use migrations with `PRAGMA user_version` or a migrations table, foreign keys ON, WAL mode, `busy_timeout` and measured `synchronous=NORMAL` vs FULL durability trade-off. Default `MaxOpenConns(1)` initially to eliminate competing writers; tune only with justified local performance evidence. Never run long network operations inside SQL transactions; use short BEGIN IMMEDIATE write sections for claim/upsert/alert episode dedupe. Schema upgrades are forward-only; rollback means restoring a validated pre-upgrade backup with the prior application image, not applying unreviewed down migrations.
 
 Product is distinct from retailer listing, observed price, structured promotional offer, alert rule, alert episode and delivery attempt. Use integer cents and rational quantity normalization; no float for monetary comparisons. Use UTC epoch milliseconds or RFC3339 in database consistently; render in local timezone. See [DATA-CONTRACTS.md](DATA-CONTRACTS.md).
 
@@ -127,7 +127,7 @@ Order per supported/approved source:
 3. Acquire global + domain tokens, memory slot and job lease; defer on pressure or policy backoff.
 4. Bounded `net/http` GET with conservative headers, `context.WithTimeout`, gzip handling with **decompressed** byte cap; disallow unbounded redirect chains. Colly may orchestrate allowed links/rate limits but must call the hardened transport and respect the same limits.
 5. Prefer JSON-LD `Product` / `Offer`; then documented site-specific embedded JSON; then page HTML with goquery selectors. Never eval JavaScript or access non-public unauthorized endpoints.
-6. Emit normalized `Extraction` with evidence source selector/path, source URL, page timestamp, source content digest, adapter/parser version, size/brand/variant/GTIN, offer terms, stock and confidence; reject conflicting/highly suspicious price data.
+6. Emit normalized `Extraction` with per-field origin/path, sanitized source URL, fetch timestamp, source-content digest, adapter/parser version, size/brand/variant/GTIN, offer terms, stock and confidence; reject conflicting/highly suspicious price data. Keep the response body bounded and ephemeral; do not persist full raw pages by default.
 7. Match product, validate currency/quantity, classify offer eligibility, persist observation/status.
 8. Rule engine evaluates only **fresh exact-match qualifying observations**; transactional episode dedupe and outbox record.
 9. Delivery worker sends bounded webhook with retry/idempotency and event trail.
@@ -135,7 +135,7 @@ Order per supported/approved source:
 **Fallback failures:** if structured data disagrees with clearly identified visible product data, classify as conflict and put into review; do not always select “cheapest.” If a page requires JS or signed-in state, mark unsupported or optionally invoke a separately hosted *remote* renderer following policy, never launch Chromium on the Pi.
 
 ### Default budgets (all configurable but product limits not bypassable)
-- Max one worker lease processing a fetch at a time for MVP; at most two total controlled outbound HTTP connections including notifications.
+- Max one worker lease processing a fetch at a time for MVP; at most two total controlled outbound HTTP connections, with no more than one fetch and one notification delivery in flight.
 - Per-domain token bucket baseline **1 request / 10 s** and concurrency 1; obey stricter site terms, 429 `Retry-After` and exponential backoff.
 - Request timeout 10–15 s; total operation 30 s; at most two retry attempts per scheduled episode.
 - Max decompressed response size initially **2 MiB**, JSON-LD block 128 KiB, max search candidates 50/query and 10 pages/query for approved sources; reject oversized responses before goquery DOM allocation.
@@ -146,7 +146,7 @@ Order per supported/approved source:
 These are architecture starting defaults; local ARM64 memory and source-policy tests decide reductions. Never raise concurrency to hide rate limits.
 
 ## 7. Search and discovery architecture
-**R1:** manual URL plus local catalog search; remote discovery is *not* necessary to operate.  
+**R1:** manual submission of a URL from an assessed, approved and enabled source, plus local catalog search; manual submission never bypasses source approval or URL safety. Remote discovery is *not* necessary to operate.  
 **R2:** search provider interface:
 - `RetailerSearch` for explicitly validated site's permitted public search endpoint/page.
 - Optional `RemoteDiscovery` for a user-configured commercial/search API with credentials and quota, using HTTPS and explicit privacy disclosure.
@@ -161,7 +161,7 @@ No SearXNG or local headless browser is bundled. Remote rendering outside Pi rem
 
 **Quantity:** normalize 750 ml = 0.75 L (within one unit class); packs carry quantity and count, e.g. 2 × 750 ml; no implicit conversion between weight and volume. Rounding is at presentation only, always derived from integer price cents and exact rational quantity.
 
-**Offer taxonomy:** `standard`, `public_special`, `member`, `multibuy`, `coupon`, `unknown`. Record required membership, quantity, promotional claim, validity and evidence. Do not mark “sale” from mere numeric drop without evidence of promotion; use “price below target” or “observed price decreased.” For multibuy, evaluate explicitly computed basket total and cost per item, never conflate with buying one unit.
+**Offer taxonomy:** `standard`, `public_special`, `member`, `multibuy`, `coupon`, `unknown`. Record required membership, minimum qualifying quantity, promotional claim, validity and bounded evidence provenance. `amount_minor` represents the amount charged for the required quantity of saleable listing packs; a single-pack offer uses quantity 1. Do not mark “sale” from a numeric drop without promotion evidence; use “price below target” or “observed price decreased.” For multibuy, evaluate the explicit qualifying basket total and exact effective cost per pack; never substitute it for a one-pack price. R1 may display coupons as conditional information but excludes them from ranking and alerts until R2 models full eligibility and basket cost.
 
 **Freshness and status:** statuses `ok`, `not_found`, `blocked`, `rate_limited`, `parse_error`, `invalid_price`, `offline`, `policy_disallowed`, `paused`. On failure, retain last good historical price but expire it from the current-ranking view. No invalid values pass to alert rules.
 
@@ -176,9 +176,9 @@ Jobs are stored in SQLite: `queued → leased → completed` or `retry_at / bloc
 
 ## 10. RAM and performance design
 ### Non-negotiable memory contract
-**Absolute:** 500,000,000 bytes total attributable incremental RAM use on the Pi. The single container is cgroup-limited below this, e.g. start with **440 MB** (decimal) `mem_limit: 440m`; check that image labels/Compose parsing produce the intended byte limit. The remaining 60 MB is allowance for attributable overhead outside the container and measurement uncertainty. If any additional local service is introduced, its memory **must** be included in the same budget; it cannot be called free.
+**Absolute:** 500,000,000 bytes total attributable incremental RAM use on the Pi. The single container is cgroup-limited below this, starting at **440,000,000 bytes (440 MB decimal)**; configure the byte value explicitly (for example, `mem_limit: 440000000`) and verify the effective limit with Docker inspection and cgroup files instead of assuming a unit suffix. The remaining 60,000,000 bytes is the maximum reserve for attributable overhead outside the container and measurement uncertainty, not an unmeasured pass. If any additional local service is introduced, its memory **must** be included in the same budget; it cannot be called free.
 
-**Engineering target:** normal cgroup peak <=350 MB including cache; base idle preferably <=100 MB, but not asserted until measurement. Memory-budget figures are **hypotheses** for design, not observed measurements.
+**Engineering target:** normal cgroup peak <=350,000,000 bytes including cgroup-charged cache; base idle preferably <=100,000,000 bytes, but not asserted until measured. Memory-budget figures are **hypotheses** for design, not observed measurements.
 
 | Account | Provisional target |
 |---|---:|
@@ -188,9 +188,9 @@ Jobs are stored in SQLite: `queued → leased → completed` or `retry_at / bloc
 | Local catalog search, queue and notifications | 45 MB |
 | OS/cgroup page cache and stack variability | 55 MB |
 | Operational headroom inside container | 120 MB |
-| **Configured container hard ceiling** | **440 MB** |
-| External to container budget reserve | **60 MB** |
-| **System contractual maximum** | **500 MB** |
+| **Configured container hard ceiling** | **440,000,000 bytes** |
+| External to container budget reserve | **60,000,000 bytes** |
+| **System contractual maximum** | **500,000,000 bytes** |
 
 Numbers are planning allocations; if baseline measurements differ, optimize/reallocate without exceeding the max. Do not infer absence of memory leaks from a single `docker stats` sample.
 
@@ -206,11 +206,12 @@ Numbers are planning allocations; if baseline measurements differ, optimize/real
 
 ## 11. Security and deployment model
 - Default binding to LAN with configurable host/port; do not suggest naked internet exposure. TLS via user's existing reverse proxy, trusted-proxy list explicit.
-- Password stored via bounded Argon2id; single concurrent login hash slot to contain RAM; encrypted/signed sessions with rotation, Secure/HttpOnly/SameSite cookies and CSRF for all mutations incl HTMX.
+- Password stored via bounded Argon2id; single concurrent login hash slot to contain RAM; encrypted/signed sessions with rotation, Secure/HttpOnly/SameSite cookies and CSRF for all mutations incl HTMX. Logout is POST-only; GET never mutates a session.
 - Initial admin setup requires one-use setup secret or local-only first-run route with strict IP authorization; never ship default credentials.
 - SSRF guard validates every outbound destination and DNS answer, rejects internal/prohibited ranges and redirection to private endpoints, and enforces domain allowlists. Dedicated tests required for IPv4, IPv6, encoded hostnames, CNAME and rebinding.
 - Content Security Policy, `nosniff`, strict output escaping, no remote scripts, sanitized links and image proxy restrictions (prefer no remote product image fetch in R1).
 - Config/environment secrets masked in UI, logs, diagnostics, backup manifest and support exports; optional webhook keys not written in alert payload.
+- Notification delivery uses a separate outbound policy from retailer fetching. Private-network delivery (for example, a local Home Assistant endpoint) is allowed only for an exact administrator-configured destination; validate DNS, redirects and resolved IPs on every attempt.
 - No retailer account automation, CAPTCHA evasion, blocked scraping or prohibited endpoint use.
 - Every data modification has context-bound auth and audit trail for source disable, manual override, watch change, backup and restore.
 - Health endpoints may be unauthenticated only when they do not expose sensitive details; admin metrics require auth.
@@ -237,7 +238,7 @@ Follow [UX-SPEC](../product/UX-SPEC.md): mobile-first layouts, full-page SSR fal
 
 **Persistent dirs:** `/data/leanprice.sqlite`, `/data/backups`, optional `/data/logs`; use a single persistent volume with permission documented. Backup snapshots may consume disk but must not load full DB into RAM. Service should stop accepting new jobs before migration/restore. Docker `mem_limit`/swap/pids/read-only FS/cap-drop settings documented and tested on actual Pi kernel.
 
-**Upgrade order:** local quality gates → verified backup → stop old container → start new version with migration → readiness/smoke → commit rollout. No simultaneous old/new instances; on failure stop new, restore only from compatibility-checked backup and recover via documented rollback.
+**Upgrade order:** local quality gates → verified backup → stop old container → start new version with forward migration → readiness/smoke → commit rollout. No simultaneous old/new instances; on failure stop new, restore only from a compatibility-checked pre-upgrade backup and run the prior application image. Do not attempt an unreviewed reverse SQL migration.
 
 ## 16. Quality gates and architecture fitness functions
 - **Architecture parity:** package dependency direction, interfaces, no SQL in handlers, no network in DB transactions, no unevaluated price to alert.

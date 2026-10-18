@@ -1,5 +1,5 @@
 # leanPrice — Data Model, API and Domain Contracts
-**Status:** Proposed v1 technical contract (not implemented)  
+**Status:** Proposed v1.1 technical contract (not implemented; design alignment review)  
 **Depends on:** merged [PRD](../product/PRD.md), [UX](../product/UX-SPEC.md), [Acceptance](../product/ACCEPTANCE.md) and [Architecture](ARCHITECTURE.md).  
 **Source-of-truth rule:** changes in pricing/business meaning require product-document revision first.
 
@@ -10,7 +10,7 @@
 4. **No guess as known.** Stock/offer eligibility/confidence can be unknown. Unknown never becomes true during ranking.
 5. **Immutable observation lineage.** A new collection creates a new attempt and observation; earlier history is not overwritten because a later parser fails.
 6. **Every alert traces** to one validated observation, canonical match decision, rule version, eligible offer and notification episode.
-7. **All user-supplied network targets are unsafe** until source approval and SSRF validation, including redirects and DNS re-resolution.
+7. **All user-supplied network targets are unsafe** until the corresponding source is assessed and approved, enabled by an administrator, and SSRF-validated, including every redirect and DNS re-resolution.
 8. **One DB, local transactions.** Never hold write lock during HTTP or webhook call.
 9. **Database schema changes are explicit, monotonic and tested** with fresh/upgrade/restore fixtures.
 
@@ -45,7 +45,7 @@ erDiagram
 - `settings`, `admin_users`, `sessions`: private single-instance metadata and authentication.
 
 ## 3. Baseline DDL (design sketch, to finalize in migrations)
-Types are SQLite primitives; IDs are opaque TEXT UUID/ULID unless justified otherwise, all timestamps UTC epoch milliseconds INTEGER, all prices INTEGER cents. The migration author must add CHECK and foreign-key constraints equivalent to those shown and test all indexes with query plans.
+Types are SQLite primitives; IDs are opaque TEXT UUID/ULID unless justified otherwise, all timestamps UTC epoch milliseconds INTEGER, all prices INTEGER cents. The migration author must add CHECK and foreign-key constraints equivalent to those shown and test all indexes with query plans. Canonical quantity is a positive rational normalized to its dimension's base unit (`L`, `kg`, or `item`); the pack count is separate. The database and service must reject inconsistent dimension/unit pairs. A retailer is descriptive; only an individual source can be assessed, enabled, paused, or rate-limited. Enabling requires `assessment_state='approved'`; pausing disables the source without erasing its assessment history.
 
 ```sql
 PRAGMA foreign_keys = ON;
@@ -53,8 +53,7 @@ PRAGMA journal_mode = WAL;
 
 CREATE TABLE retailers (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
-  enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0,1))
+  name TEXT NOT NULL UNIQUE
 );
 CREATE TABLE sources (
   id TEXT PRIMARY KEY,
@@ -65,25 +64,32 @@ CREATE TABLE sources (
   currency TEXT NOT NULL DEFAULT 'ZAR',
   capability_json TEXT NOT NULL DEFAULT '{}',
   assessment_state TEXT NOT NULL DEFAULT 'unassessed'
-    CHECK (assessment_state IN ('unassessed','approved','disallowed','paused','unsupported')),
+    CHECK (assessment_state IN ('unassessed','review_required','approved','disallowed','unsupported')),
   assessment_ref TEXT,
   assessment_at INTEGER,
   enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0,1)),
   min_interval_ms INTEGER NOT NULL DEFAULT 10000,
   next_allowed_at INTEGER NOT NULL DEFAULT 0,
-  parser_version TEXT NOT NULL DEFAULT '0'
+  parser_version TEXT NOT NULL DEFAULT '0',
+  CHECK (enabled = 0 OR assessment_state = 'approved'),
+  CHECK (assessment_state != 'approved' OR
+    (assessment_ref IS NOT NULL AND assessment_at IS NOT NULL))
 );
 CREATE TABLE canonical_products (
   id TEXT PRIMARY KEY,
   display_name TEXT NOT NULL,
   brand TEXT, product_line TEXT, variant TEXT,
-  quantity_numerator INTEGER,
-  quantity_denominator INTEGER,
-  quantity_unit TEXT,
+  quantity_numerator INTEGER NOT NULL CHECK (quantity_numerator > 0),
+  quantity_denominator INTEGER NOT NULL CHECK (quantity_denominator > 0),
+  quantity_dimension TEXT NOT NULL CHECK (quantity_dimension IN ('volume','mass','count')),
+  quantity_unit TEXT NOT NULL CHECK (quantity_unit IN ('L','kg','item')),
   pack_count INTEGER NOT NULL DEFAULT 1 CHECK (pack_count > 0),
   gtin TEXT,
-  archived INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+  archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0,1)),
+  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+  CHECK ((quantity_dimension = 'volume' AND quantity_unit = 'L') OR
+    (quantity_dimension = 'mass' AND quantity_unit = 'kg') OR
+    (quantity_dimension = 'count' AND quantity_unit = 'item'))
 );
 CREATE TABLE listings (
   id TEXT PRIMARY KEY,
@@ -99,7 +105,9 @@ CREATE TABLE listings (
   match_algorithm TEXT,
   first_seen_at INTEGER NOT NULL,
   last_checked_at INTEGER,
-  UNIQUE (source_id, url_key, location_key)
+  UNIQUE (source_id, url_key, location_key),
+  UNIQUE (id, canonical_product_id),
+  CHECK (match_state != 'exact' OR canonical_product_id IS NOT NULL)
 );
 CREATE INDEX idx_listings_product_match
   ON listings(canonical_product_id, match_state);
@@ -140,6 +148,7 @@ CREATE TABLE observed_offers (
   offer_evidence TEXT NOT NULL,
   eligibility_state TEXT NOT NULL
     CHECK (eligibility_state IN ('public','conditional','unknown')),
+  CHECK (offer_kind = 'multibuy' OR minimum_qty = 1),
   CHECK (valid_until IS NULL OR valid_from IS NULL OR valid_until >= valid_from)
 );
 CREATE INDEX idx_offers_by_observation ON observed_offers(observation_id);
@@ -149,7 +158,9 @@ CREATE TABLE watches (
   listing_id TEXT REFERENCES listings(id),
   active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
   created_at INTEGER NOT NULL,
-  current_rule_version INTEGER NOT NULL DEFAULT 1
+  current_rule_version INTEGER NOT NULL DEFAULT 1,
+  FOREIGN KEY (listing_id, canonical_product_id)
+    REFERENCES listings(id, canonical_product_id)
 );
 CREATE TABLE watch_rule_versions (
   watch_id TEXT NOT NULL REFERENCES watches(id),
@@ -162,7 +173,10 @@ CREATE TABLE watch_rule_versions (
   allow_multibuy INTEGER NOT NULL DEFAULT 0 CHECK (allow_multibuy IN (0,1)),
   rearm_policy_json TEXT NOT NULL DEFAULT '{}',
   created_at INTEGER NOT NULL,
-  PRIMARY KEY (watch_id, version)
+  PRIMARY KEY (watch_id, version),
+  CHECK (target_minor IS NOT NULL OR drop_basis_points IS NOT NULL),
+  CHECK (condition_operator != 'all' OR
+    (target_minor IS NOT NULL AND drop_basis_points IS NOT NULL))
 );
 CREATE TABLE jobs (
   id TEXT PRIMARY KEY,
@@ -208,10 +222,10 @@ CREATE TABLE delivery_outbox (
 );
 ```
 
-This is **not executable production-ready schema**: constraints, admin/session/event tables, storage paths, online-migration behavior, indexes and migration numbering must be finalized and reviewed slice-by-slice. In particular, avoid an outbox job whose status can become inconsistent with a source `job`; transactional boundaries must be explicit.
+This is **not executable production-ready schema**: constraints, admin/session/event tables, storage paths, online-migration behavior, indexes and migration numbering must be finalized and reviewed slice-by-slice. In particular, avoid an outbox job whose status can become inconsistent with a source `job`; transactional boundaries must be explicit. SQLite's composite foreign key on `watches` enforces that an optional selected listing belongs to the same canonical product. Service transactions must additionally enforce that an alert's observed offer belongs to the watch's selected listing, or to an exact listing for that canonical product when the watch is product-wide.
 
 ## 4. Normalized extraction contract
-A fetcher returns an immutable bounded payload metadata object; adapter parsing never performs network calls behind a handler's back. Every parser returns an extraction *plus* per-field origin and warnings.
+A fetcher returns immutable bounded response metadata; adapter parsing never performs network calls behind a handler's back. Every parser returns an extraction plus per-field origin and warnings. Persist only the normalized facts, field origins, evidence digest, bounded selector/JSON-LD path and sanitized source URL needed to explain a decision. Do not persist full response bodies or raw HTML by default. URLs must remove userinfo and redact credential-like query values while retaining only assessed SKU-identifying parameters; redirects are revalidated before the final sanitized URL is recorded.
 
 ```go
 type ExtractedPrice struct {
@@ -223,6 +237,12 @@ type ExtractedPrice struct {
     Membership        *string
     ValidFrom, ValidTo *time.Time
     EvidencePath      string
+    Origin            FieldOrigin
+}
+type FieldOrigin struct {
+    Kind              string // json_ld, meta, selector, or reviewed_manual
+    Path              string // bounded selector or structured-data path
+    Confidence        Confidence
 }
 type Extraction struct {
     ObservedAt        time.Time
@@ -236,10 +256,11 @@ type Extraction struct {
     ParserVersion     string
     EvidenceDigest    string
     Warnings          []ErrorCode
+    FieldOrigins      map[string]FieldOrigin
 }
 ```
 
-Price precedence is not hard-coded globally: adapter supports explicit field origin metadata; inconsistent markup triggers a `PRICE_CONFLICT` rather than choosing lowest. Avoid storing raw HTML indefinitely; sanitized fixtures committed only where rights allow. PII and secrets never enter evidence fields.
+Price precedence is not hard-coded globally: adapter supports explicit field origin metadata; inconsistent markup triggers a `PRICE_CONFLICT` rather than choosing lowest. Persisted evidence is bounded and sanitized; fixtures may contain sanitized excerpts only where rights allow. PII and secrets never enter evidence fields. Decimal-to-minor-unit conversion must be exact for the currency or fail. Rational quantity and effective basket comparisons use checked integer arithmetic (or overflow-safe cross multiplication); overflow is a validation failure, and rounding is display-only after all rule decisions.
 
 ## 5. URL and identity
 **URL key:** normalize safe public URL form (lowercase/IDNA host, remove fragment, standard port, normalize recognized tracking parameters cautiously without deleting SKU-identifying params). Redirects must be revalidated; no vanity canonical URL redirect to internal host. Source host allowlist must include configured legitimate CDN subhosts only after assessment, not `*.retailer.com` by default.
@@ -251,7 +272,7 @@ Price precedence is not hard-coded globally: adapter supports explicit field ori
 4. Hard mismatch → rejected; insufficient fields → possible; high-confidence exact only with no hard conflict.
 5. Manual match confirmation persists reviewer identity/time/rationale; changes audit and can trigger re-evaluation without retroactively mislabelling old alerts.
 
-**Quantity model:** numerator/denominator rational, dimension `volume|mass|count`, normalized base unit; e.g. 750ml = 750/1000 L. Pack count separate. Compare unit prices only within the same dimension and when full effective quantity known. Price per unit display uses deterministic decimal rounding; pricing/evaluation retains rational semantics.
+**Quantity model:** numerator/denominator rational, dimension `volume|mass|count`, normalized base unit; e.g. 750ml = 750/1000 L. Pack count separate. Compare unit prices only within the same dimension and when full effective quantity known. Price per unit display uses deterministic decimal rounding; pricing/evaluation retains rational semantics. A known GTIN never overrides a hard brand, variant, pack-count, or quantity conflict. Candidate matches remain excluded until a reviewed exact decision; manual decisions record actor, time and rationale and never rewrite prior observation or alert identity.
 
 ## 6. Offer eligibility and ranking contract
 The `observed_offers` row is **a declared offer**, not necessarily a verified eligible offer. Ranking service first filters:
@@ -261,7 +282,9 @@ The `observed_offers` row is **a declared offer**, not necessarily a verified el
 - `eligibility_state=public` for default public-only comparison;
 - user setting explicitly permits member/multibuy before those are considered.
 
-Then compare integer effective basket totals. If source does not disclose shipping, taxes, fees or geographic context, label “online listed price; checkout may differ”; do not invent total landed cost.
+`amount_minor` is the total amount charged for `minimum_qty` saleable listing packs. Standard, public-special and member single-pack offers use `minimum_qty=1`; a multibuy records the complete qualifying basket amount and minimum quantity. Preserve the single-pack amount separately as its own offer when the retailer publishes it; never divide a multibuy into a fictitious one-pack offer. Display an effective per-pack value only alongside the qualifying basket total and quantity. Coupon offers are conditional/informational in R1 and are excluded from ranking and alerts until a later version models the complete basket and all eligibility terms. Unknown stock is not in-stock; a price-only alert may proceed only when its message explicitly says stock is unverified. Out-of-stock is excluded from default purchase recommendations and alerts.
+
+Then compare integer effective basket totals for the selected purchase quantity. A multibuy target applies to its complete qualifying basket amount and quantity; only compare offers across retailers when their effective quantities match, otherwise keep them in separate groups. If source does not disclose shipping, taxes, fees or geographic context, label “online listed price; checkout may differ”; do not invent total landed cost.
 
 **Discount semantics:**
 - `threshold_met`: observed qualifying price <= configured cents target.
@@ -284,6 +307,8 @@ new verified offer
 
 Episode state persists across restarts. For percentage drops, comparison context must match location/eligibility/quantity, and missing baseline suppresses % rule with explicit reason. A rule change increments version; current queued deliveries retain their original rule version and evidence. The operator may suppress old deliveries if desired, but must be auditable.
 
+For a multibuy explicitly allowed by the rule, `target_minor` applies to the complete `amount_minor` for that offer's `minimum_qty`; the UI and alert must state both the total and qualifying quantity. Percentage-drop baselines must use the same quantity and eligibility context. Do not compare a multibuy basket threshold with a one-pack amount or another retailer's offer for a different quantity.
+
 **Exactly-once logical event, best-effort external delivery:** unique constraints prevent two episode records; provider can receive a duplicate if network response is lost. Stable `Idempotency-Key` (if provider supports it) plus event-id payload and dedup guidance prevent or explain repeats. Never promise mathematically exactly-once third-party delivery.
 
 ## 8. Jobs and scheduler semantics
@@ -297,13 +322,15 @@ HTML first. All endpoints other than login/setup/health require a session. Exter
 | Route | Method | Auth | Behaviour |
 |---|---|---|---|
 | `/` | GET | yes | Dashboard full page or selected fragment |
-| `/login` / `/logout` | GET/POST | appropriate | Login and logout; session rotation |
+| `/login` | GET/POST | anonymous/CSRF as applicable | Login; rotate session on success |
+| `/logout` | POST | yes+CSRF | Invalidate session; state change is never performed by GET |
 | `/setup` | GET/POST | one-use local setup | Initial admin and privacy configuration |
 | `/search` | GET | yes | Local catalog R1; opt-in discovery R2 |
 | `/products` | GET | yes | Paginated/filterable catalog |
 | `/products/from-url` | POST | yes+CSRF | Validate URL; preview token; no immediate unconfirmed attach |
 | `/products` | POST | yes+CSRF | Persist canonical product after review |
 | `/products/{id}` | GET | yes | Product, offers and history |
+| `/products/{id}` | POST | yes+CSRF | Edit reviewed canonical identity or archive with audit |
 | `/products/{id}/listings` | POST | yes+CSRF | Attach confirmed listing |
 | `/listings/{id}/check` | POST | yes+CSRF | Enqueue bounded idempotent refresh, return 202/HTMX |
 | `/products/{id}/watches` | POST | yes+CSRF | Save versioned watch criteria |
@@ -311,9 +338,13 @@ HTML first. All endpoints other than login/setup/health require a session. Exter
 | `/activity` | GET | yes | Paginated event history |
 | `/sources` | GET | yes | Capability/health and assessment |
 | `/sources/{id}/pause` | POST | admin+CSRF | Pause source with audit |
+| `/sources/{id}/enable` | POST | admin+CSRF | Enable only an assessed, approved source; audit decision |
 | `/settings` | GET/POST | yes+CSRF for POST | Locale, resource, notification settings |
 | `/settings/notifications/test` | POST | yes+CSRF | Explicit test delivery |
-| `/admin/backups` | GET/POST | admin+CSRF | List/make backup, validate restore intent |
+| `/admin/backups` | GET | admin | List versioned backup artifacts |
+| `/admin/backups` | POST | admin+CSRF | Create verified versioned backup artifact |
+| `/admin/backups/{id}/restore` | POST | admin+CSRF | Validate artifact and compatibility, create safety backup, stop work, restore atomically where possible, then verify readiness; reinstate safety backup on any replacement/readiness failure |
+| `/admin/exports/products.csv` | GET | yes | Later planned: stream local product/observation export with formula-safe cells and no secrets |
 | `/health/live` | GET | LAN/no secrets | Process alive |
 | `/health/ready` | GET | LAN/no secrets | DB/migrations ready |
 
@@ -351,8 +382,9 @@ For cross-component diagnostics, internal service results use typed codes rather
 - `PRAGMA foreign_keys=ON`; WAL configured at startup, autocheckpoint tested against SD/SSD behavior.
 - Short write transactions; schema migration serialized before scheduler starts.
 - Safe online backup, integrity verification, checksum manifest, atomic rename, restrictive permissions, tested restore *with container stopped*. Never copy the main `.sqlite` file alone while WAL active.
-- On restore: validate schema version, checksum/integrity, create safety backup, stop jobs, swap atomically where possible, restart, verify readiness and no deduped alert corruption.
-- On old-version upgrade: backup first, apply forward-only migrations and dry-run in local fixture; rollback is binary+restored DB, not ad hoc reverse SQL.
+- A backup is a sensitive local artifact with restrictive permissions. It contains no sessions, webhook credentials or external secrets; after a successful restore, invalidate all sessions and re-provision external credentials.
+- On restore: accept only the documented versioned artifact; validate schema compatibility, checksum and integrity, create a safety backup, stop jobs, swap atomically where possible, restart, verify readiness and alert/outbox consistency. Reject an invalid or incompatible artifact without replacing the current database. If replacement, restart or readiness fails, stop work and reinstate the pre-restore database from the safety backup before reporting failure.
+- On old-version upgrade: backup first and apply supported forward-only migrations. Rollback is the prior application image plus a validated pre-upgrade database backup, not ad hoc reverse SQL or an unsupported downgrade.
 - Consider database size/reliability on Pi SSD; no high-frequency fsync without demonstrated benefit.
 
 ## 13. Observability and privacy
@@ -367,6 +399,6 @@ Keep structured internal events for errors and alert decisions, not raw store pa
 | Scheduler/sources/health | FR-030–040 | AC-S*, AC-O* |
 | Security/SSRF/auth | NFR-009/011 | AC-X*, AC-M02 |
 | Resource and SQLite | NFR-001–008/010/014 | AC-R*, AC-O* |
-| UI/HTMX/mobile | UX-SPEC | U-01–U-10 |
+| UI/HTMX/mobile | UX-SPEC | U-01–U-14 |
 
 Every implementation slice will cite these IDs and add a migration, test fixture and observability artifact where applicable.

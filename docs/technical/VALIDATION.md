@@ -1,5 +1,5 @@
 # leanPrice — Local Validation, Security and Release Runbook
-**Status:** **planned checks only**. No application exists yet, so none of these tests has been executed.  
+**Version:** 1.1 | **Status:** **planned checks only**. No application exists yet, so none of these tests has been executed.  
 **Contract:** [PRD](../product/PRD.md), [Acceptance](../product/ACCEPTANCE.md), [Architecture](ARCHITECTURE.md), [Data contracts](DATA-CONTRACTS.md).
 
 ## 1. Philosophy
@@ -77,22 +77,25 @@ Fresh independent assessment against **all** product musts, security/identity/al
 ## 6. Pricing and matching contract fixtures
 Must include all product AC-M* and AC-P*, with at least:
 - Domestos Lavender 750 ml exact across stores, Original 750 ml different, Lavender 1 L different, twin-pack separate.
-- Name casing and Unicode variants; GTIN trustworthy/absent/conflict; manipulated titles.
+- Name casing and Unicode variants; GTIN trustworthy/absent/conflict (a GTIN match cannot override physical mismatch); manually reviewed match actor/time/rationale without rewriting prior alert identity; manipulated titles.
 - Price “R 29.99”, “R1 299,90”, 0, -1, blank, duplicated JSON-LD conflicting with HTML, USD instead of ZAR.
-- Public price R34, member R29, 2× multibuy R50, coupon requirement unknown.
+- Public price R34, member R29, 2× multibuy R50 with amount stored as the qualifying two-pack total and single-pack price preserved, coupon eligibility incomplete.
+- Exact rational quantity, monetary conversion and overflow cases; no rounding before offer/rule comparison. Coupon is informational and excluded from R1 ranking and alerts.
 - Out-of-stock vs unknown-stock vs in-stock; fresh vs stale data.
 - No false “sale” from a low but non-promo standard price; retailer old-price claim vs observed historic decrease.
-- Notification triggers on fresh exact eligible offer only; percent baseline missing → suppressed with reason.
+- Notification triggers on fresh exact eligible offer only; percent baseline missing → suppressed with reason; multibuy target uses its complete qualifying basket total and matching quantity; unknown stock may trigger a price-only alert only when copy says “stock not verified”; out-of-stock excluded.
+- Separate webhook target policy allows only the exact admin-configured endpoint, revalidates DNS/redirects, and does not weaken retailer-fetch SSRF rules. Logout GET has no effect; logout POST requires CSRF.
 - Repeated identical scrape → no repeated alert episodes; restart/outbox replay → at-least-once network delivery semantics documented.
 
 Golden fixtures carry adapter version, source origin, rights/permission note and expected normalized payload; no real credentials or unrestricted captured HTML archived.
 
 ## 7. SQLite operational tests
-- Apply each migration from empty database; test upgrade from every supported released schema version with sample data.
+- Apply each migration from an empty database; test forward upgrade from every supported released schema version with sample data. Do not test or support reverse SQL downgrades.
 - Validate `PRAGMA foreign_key_check`, `PRAGMA integrity_check`, indexes and query plans on 100/500/1000 products synthetic.
 - Transaction cancellation during job claim/observation write/episode+outbox insert: no partial event.
 - Power interruption simulation (`kill -9` Go process) while lease and while WAL append; restart, lease reclaim, dedupe and integrity.
-- Backup during write activity with online backup method; independent restore from checksum and clean container; ensure rows and notification episode continuity.
+- Backup during write activity with online backup method; independent restore from a compatible versioned artifact into a clean container; ensure rows and notification episode continuity. Reject malformed, incompatible or integrity-failing artifacts without replacing the current DB; inject replacement/readiness failure and restore the prior DB from the safety backup.
+- Verify restore invalidates sessions and does not import webhook credentials or other external secrets; those must be re-provisioned.
 - Full disk/readonly volume: clear errors, no destructive auto-fix; operator can recover after free space.
 - Retention/compaction does not remove price observations referenced by ongoing alerts.
 - Verify DB performance under constrained caches, `MaxOpenConns(1)`, and benchmark any proposal to change connection count.
@@ -148,7 +151,7 @@ For each candidate retailer, create `docs/evidence/sources/<source>-assessment.m
 6. Decision **approved / unsupported / disallowed / requires further review** with signer.
 7. Rescan triggers when markup or source policies change.
 
-Don't enable a source while the assessment is unresolved. If no two retailers pass, follow PRD's honest manual-URL fallback and update product scope before claiming release.
+Don't enable a source while assessment is unresolved. Manual URL submission remains subject to assessment, approval and enablement. If fewer than two retailers pass, revise R1 scope and claims before release; if none is approved, source-backed R1 refresh remains blocked.
 
 ## 12. Evidence template
 ```markdown

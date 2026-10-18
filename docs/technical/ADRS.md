@@ -1,5 +1,6 @@
 # leanPrice — Architecture Decision Records (ADRs)
 **Status:** Proposed decisions for implementation baseline, 2026-10-18  
+**Review:** v1.1 product/technical contract alignment; decisions remain design-only and unmeasured.  
 **Dependency:** [Product PRD](../product/PRD.md) merged to main before these records were created.  
 **Change discipline:** every reversal requires a new ADR that supersedes the old one, product-impact review and updated implementation plan/acceptance tests. “Accepted” here means design baseline, **not performance-validated deployment**.
 
@@ -33,7 +34,7 @@
 **Sources:** https://github.com/gocolly/colly ; https://github.com/PuerkitoBio/goquery ; https://developers.google.com/search/docs/appearance/structured-data/merchant-listing
 
 ## ADR-004: Explicit retailer capability/permission registry
-**Decision:** every target retailer defaults disabled and unassessed; a source may be enabled only after a dated technical and terms/robots review. Capability flags describe manual URL, permitted search, public price, stock, promo, locality. Runtime enforces rate limits and stops/backoffs on 403/429.
+**Decision:** every source endpoint/capability defaults disabled and unassessed; a source may be enabled only after a dated source-policy and technical review. Retailer rows are descriptive and do not carry a second enable switch. Capability flags describe manual URL, permitted search, public price, stock, promotion and locality. A pasted URL remains subject to the same assessment and destination checks as scheduled fetching. Runtime enforces rate limits and stops/backs off on 403/429.
 **Alternatives:** generic crawl arbitrary domains; infer support when any HTML page parses.
 **Why:** safer, maintainable, honest coverage.
 **Tradeoffs:** onboarding sources requires work; coverage grows slowly.
@@ -49,7 +50,7 @@
 **Status:** Accepted.
 
 ## ADR-006: Explicit offer eligibility and alert provenance
-**Decision:** keep offer kind, eligibility, currency, stock, freshness, validity, minimum quantity and evidence. Public-only default; unknown terms not ranked as public deals. Immutable alert episode references observation and rule version.
+**Decision:** keep offer kind, eligibility, currency, stock, freshness, validity, minimum qualifying quantity and bounded evidence provenance. `amount_minor` is the total amount charged for `minimum_qty` saleable listing packs; ordinary single-pack offers use quantity 1. Public single-pack is the R1 default. Member/multibuy offers require explicit eligibility and a calculable qualifying basket; coupons remain informational and ineligible for R1 ranking/alerts until R2 models their full basket conditions. Unknown stock is never called in stock, and any price-only alert must carry the qualifier. Immutable alert episode references the observation and rule version.
 **Alternatives:** one price per listing with “on sale” boolean.
 **Why:** accurate promotions and explainable alerts.
 **Tradeoffs:** bigger schema, more validation.
@@ -65,7 +66,7 @@
 **Status:** Accepted.
 
 ## ADR-008: Application and cgroup resource governor
-**Decision:** measure total attributable leanPrice memory; enforce one Pi container with initial kernel hard limit **440 MB decimal** and no extra swap, leaving room below 500 MB system ceiling. `GOMEMLIMIT`, bounded HTTP/DOM, queue, query and request concurrency provide proactive backpressure.
+**Decision:** measure total attributable leanPrice memory; enforce one Pi container with initial kernel hard limit **440,000,000 bytes (440 MB decimal)** and no extra swap, leaving room below the **500,000,000-byte** system ceiling. Target a normal-workload cgroup peak no greater than **350,000,000 bytes**. `GOMEMLIMIT`, bounded HTTP/DOM, queue, query and request concurrency provide proactive backpressure; these targets are not evidence until measured.
 **Alternatives:** rely on Go GC, 500 MB per service, idle-only measurement, browser time slicing.
 **Why:** user constraint is a hard **whole stack** maximum, not a target.
 **Tradeoffs:** slower jobs and incomplete retailer coverage under memory pressure; cgroup hard limits can OOM if application budgets fail.
@@ -81,7 +82,7 @@
 **Status:** Accepted.
 
 ## ADR-010: Local-only validation and deployment
-**Decision:** enforce Makefile/scripts for Go tests, vulnerability/license checks, lint/static checks, fixture/integration suites, ARM64 build, Pi 24h soak, backup/restore, security and accessibility audits. **Do not create/change GitHub Actions workflows** or use hosted CI as a quality gate.
+**Decision:** enforce Makefile/scripts for Go tests, vulnerability/license checks, lint/static checks, fixture/integration suites, ARM64 build, Pi 24h soak, backup/restore, security and accessibility audits. Migrations are forward-only; a failed upgrade rolls back by restoring the validated pre-upgrade backup with the previous application image, not by applying unreviewed reverse SQL. **Do not create/change GitHub Actions workflows** or use hosted CI as a quality gate.
 **Alternatives:** GitHub Actions, cloud build/test, manual-only testing.
 **Why:** user's established local-first development operation and reproducibility.
 **Tradeoffs:** operator must run/record local gates; results need durable artifacts and independent review.
@@ -89,7 +90,7 @@
 **Status:** Accepted.
 
 ## ADR-011: No user-entered arbitrary outbound fetch
-**Decision:** URL validation + source allowlist + DNS/IP and redirect revalidation, including disallowing private/internal/meta-data addresses and dangerous schemes/ports. Fetcher is sole network authority and adapter network access goes through it.
+**Decision:** retailer URL validation + source allowlist + DNS/IP and redirect revalidation, including disallowing private/internal/metadata addresses and dangerous schemes/ports. The hardened fetcher is the sole retailer-fetch authority and adapters cannot create raw clients. User-configured notification targets use a separate policy: a private endpoint may be allowed only as an explicit, exact administrator configuration, without weakening retailer-fetch restrictions.
 **Alternatives:** raw Colly visit of any user URL; trust DNS/redirects; only block localhost text.
 **Why:** SSRF is a critical risk for a server on a LAN containing Home Assistant and other devices.
 **Tradeoffs:** some legitimate sources/CDNs require explicit allowlist adjustments and testing.
@@ -113,7 +114,7 @@
 **Status:** Accepted.
 
 ## ADR-014: Store source policy/technical feasibility gate precedes promises
-**Decision:** R1 requires two independently validated source adapters **only if permitted extraction is technically feasible**. Otherwise release a robust manual-URL structured-data watcher with clear unsupported adapters, after revising release scope and product claims.
+**Decision:** R1 requires two independently validated source adapters **only if permitted extraction is technically feasible**. Any manual-URL fallback is limited to assessed, approved, enabled sources; it is not permission to fetch arbitrary pasted URLs. If fewer than two sources pass, revise release scope and claims before release. If no source passes, R1 release remains blocked until the source scope or product workflow is revised.
 **Alternatives:** claim full Checkers/PNP/Clicks/etc support before testing.
 **Why:** production retailer pages and policies change, and Go HTTP alone may be insufficient.
 **Tradeoffs:** initial retailer coverage is uncertain.
