@@ -20,6 +20,12 @@ A lightweight, self-hosted product discovery, price comparison, historical price
 4. [Architecture Decision Records](docs/technical/ADRS.md) — alternatives, decisions, trade-offs and verification triggers.
 5. [Local Validation and Release Runbook](docs/technical/VALIDATION.md) — local quality gates, Pi load tests, source policy and rollback.
 
+## Agent skills and delivery guidance
+
+- [Root agent instructions](AGENTS.md) — authority hierarchy, Pi memory, scraping/price safety and local-only delivery rules.
+- [Skill registry](.agents/skills/README.md) — 23 reusable and leanPrice-specific skills, routed by task.
+- [Cross-repository transfer audit](docs/skills/TRANSFER-AUDIT.md) — 26 repositories scanned, source lineage and exclusions.
+
 ## Engineering policy
 
 - The PRD/UX/acceptance baseline was merged into `main` **before** technical documents were authored.
