@@ -4,6 +4,7 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 target=${PI_SSH_TARGET:-}
 port=${PI_SSH_PORT:-}
+identity=${PI_SSH_IDENTITY_FILE:-}
 output=${PI_BASELINE_OUTPUT:-$root/docs/evidence/B00/pi-baseline.md}
 
 if [ -z "$target" ]; then
@@ -12,6 +13,10 @@ if [ -z "$target" ]; then
 fi
 if ! command -v ssh >/dev/null 2>&1; then
   echo 'BLOCKED: OpenSSH client is unavailable.' >&2
+  exit 2
+fi
+if [ -n "$identity" ] && [ ! -r "$identity" ]; then
+  echo 'BLOCKED: PI_SSH_IDENTITY_FILE must name a readable SSH private key.' >&2
   exit 2
 fi
 if [ -n "$port" ]; then
@@ -36,6 +41,9 @@ trap 'rm -f "$temporary"' EXIT HUP INT TERM
 set -- -o BatchMode=yes -o ConnectTimeout=8
 if [ -n "$port" ]; then
   set -- "$@" -p "$port"
+fi
+if [ -n "$identity" ]; then
+  set -- "$@" -i "$identity" -o IdentitiesOnly=yes
 fi
 ssh "$@" "$target" sh -s >"$temporary" <<'REMOTE'
 set -eu

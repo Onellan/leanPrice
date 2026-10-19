@@ -55,7 +55,7 @@ Batch evidence records are in [`docs/evidence/`](../evidence/). The implementer-
 ### B00 — Feasibility and product traceability
 - `B00-S01`: requirement/acceptance mapping implemented in `docs/evidence/B00/requirements-map.md`; product/design sign-off is still independent and open.
 - `B00-S02`: candidate assessment documents exist for Takealot, Clicks, Makro, Checkers and Dis-Chem. They do not grant permission. All live fetches and adapters remain blocked.
-- `B00-S03`: the target host was supplied, but its existing workload has not been measured. A batch-mode SSH attempt failed with `Permission denied (publickey,password)` and wrote no baseline. The read-only `scripts/pi-baseline.sh` now accepts an optional validated `PI_SSH_PORT` (1–65535); baseline and workload gates remain blocked until SSH key authentication is available.
+- `B00-S03`: the target host was supplied, but its existing workload has not been measured. A batch-mode SSH attempt failed with `Permission denied (publickey,password)` and wrote no baseline. The read-only `scripts/pi-baseline.sh` accepts optional validated `PI_SSH_PORT` (1–65535) and `PI_SSH_IDENTITY_FILE` settings; baseline and workload gates remain blocked until an authorized SSH identity is available.
 
 ### B01 — Foundation
 - `B01-S01–S04`: implemented in `cmd/`, `internal/app`, `internal/httpui`, `web/`, `Dockerfile`, `compose.yaml`, `Makefile` and `scripts/`.
