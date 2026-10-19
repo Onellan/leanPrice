@@ -12,7 +12,7 @@ A slice can be **implemented** with local code and deterministic evidence, but a
 - Technical roadmap relocated to `docs/plans/IMPLEMENTATION-PLAN.md`; this file is the execution plan. Supporting product and technical authorities remain in their existing folders.
 - Go 1.27.2 was installed in `/tmp/leanprice-toolchains/` after checksum verification. Docker/Buildx, Make and a Docker daemon are available. Node is not installed on the host; the pinned Tailwind build runs in the Docker builder.
 - Do not fetch retailer pages until a dated assessment and separate source-owner permission approve the exact source. Do not invent adapters or credentials. The five assessed candidates all remain disabled; Takealot is disallowed, Clicks/Makro/Checkers require further review and Dis-Chem requires written consent.
-- The owner selected MIT for the project license; the repository records it in [`LICENSE`](../../LICENSE). No Raspberry Pi target, production webhook, appointed independent reviewers or external renderer host is available in this workspace.
+- The owner selected MIT for the project license; the repository records it in [`LICENSE`](../../LICENSE). The owner supplied a target Pi SSH address, but available local keys were rejected and no host baseline has been captured. No production webhook, appointed independent reviewers or external renderer host is available in this workspace.
 - Preserve existing CRLF-only edits in product/technical source documents. Do not add GitHub workflows. Network and webhook calls stay outside SQLite transactions.
 
 ## 3. Evidence and authority rules
