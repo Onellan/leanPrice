@@ -55,7 +55,7 @@ Batch evidence records are in [`docs/evidence/`](../evidence/). The implementer-
 ### B00 — Feasibility and product traceability
 - `B00-S01`: requirement/acceptance mapping implemented in `docs/evidence/B00/requirements-map.md`; product/design sign-off is still independent and open.
 - `B00-S02`: candidate assessment documents exist for Takealot, Clicks, Makro, Checkers and Dis-Chem. They do not grant permission. All live fetches and adapters remain blocked.
-- `B00-S03`: blocked until the target Pi host and existing workload can be measured; `scripts/pi-baseline.sh` is a read-only collector and exits `BLOCKED` when `PI_SSH_TARGET` is absent.
+- `B00-S03`: the target host was supplied, but its existing workload has not been measured. A batch-mode SSH attempt failed with `Permission denied (publickey,password)` and wrote no baseline. The read-only `scripts/pi-baseline.sh` now accepts an optional validated `PI_SSH_PORT` (1–65535); baseline and workload gates remain blocked until SSH key authentication is available.
 
 ### B01 — Foundation
 - `B01-S01–S04`: implemented in `cmd/`, `internal/app`, `internal/httpui`, `web/`, `Dockerfile`, `compose.yaml`, `Makefile` and `scripts/`.
@@ -115,7 +115,7 @@ Local workstation gates actually executed during this work:
 - `go test -run='^$' -bench='^BenchmarkSyntheticPiCatalogPages$' -benchtime=2s -count=2 ./internal/storage` with Go 1.27.2: PASS on workstation (exact workload and observed timing/allocation ranges are in [B02 evidence](../evidence/B02/sqlite-recovery.md)); this does not certify target capacity.
 - `go test -race -count=1 ./...`: PASS on earlier code candidate `eece378259fe7e0f3f5cf0be8a9289ea2f7d090c`, including the synthetic alert restart/re-arm journey. Focused storage/integration race suites also PASS on `d8c58f19eded6ed787996b5422c96beeebf29e15`.
 - `make GO=/tmp/leanprice-toolchains/go1.27.2/bin/go release-check`: all configured local gates PASS on implementation candidate `d8c58f19eded6ed787996b5422c96beeebf29e15` with the MIT-bearing working tree; script exits status 2 for the external gates listed in B09 evidence.
-- `make pi-baseline`: exits status 2 / BLOCKED with no `PI_SSH_TARGET`.
+- `make pi-baseline`: exits status 2 / BLOCKED with no `PI_SSH_TARGET`. A later attempt against the owner-supplied target reached SSH but failed batch-mode authentication (`Permission denied (publickey,password)`); no baseline evidence was written.
 - At the earlier release-check, before the owner selected the project license, the report marked first-party packages and `modernc.org/mathutil` Unknown. The dependency module license was manually reviewed as BSD-3-Clause; the follow-up scan after adding MIT is recorded in B09 evidence.
 - After MIT was added, `make GO=/tmp/leanprice-toolchains/go1.27.2/bin/go license-report` passed and identified first-party packages as MIT. `modernc.org/mathutil` remains scanner-Unknown and manually verified as BSD-3-Clause; the remaining scanner limitations and release-check outcome are recorded in [B09 evidence](../evidence/B09/r1-local-gates.md).
 - `govulncheck`: zero vulnerabilities in imported symbols; one advisory is for an uncalled `golang.org/x/crypto/openpgp` package. This is recorded as an uncalled-module warning, not an imported-symbol finding.
@@ -125,7 +125,7 @@ Local workstation gates actually executed during this work:
 | Gate | Needed evidence / owner | Current result |
 |---|---|---|
 | Product/source approval | Product owner/legal approval for exact retailer/source/fields/rate and scope | Five assessments, zero approved sources; B08 blocked |
-| Target Pi | Access to target Pi and other workloads; OS/cgroup/Docker facts; 24h soak | Not present; B00-S03/B09/B12 blocked |
+| Target Pi | Access to target Pi and other workloads; OS/cgroup/Docker facts; 24h soak | Host target supplied; batch-mode SSH key authentication is unavailable; B00-S03/B09/B12 blocked |
 | Independent review | Independent product, security, architecture, UX and acceptance reviewers on exact candidate SHA | Not appointed in this session; acceptance not self-certified |
 | Repository license | Record owner-selected project license and verify dependency notices/report | MIT selected in `LICENSE`; `make license-report` recognizes first-party packages as MIT; `modernc.org/mathutil` scanner-Unknown is manually verified as BSD-3-Clause |
 | Search provider | Explicitly selected/authorized provider and quota/privacy decision | None configured; B10 provider path incomplete |

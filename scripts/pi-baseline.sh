@@ -3,6 +3,7 @@ set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 target=${PI_SSH_TARGET:-}
+port=${PI_SSH_PORT:-}
 output=${PI_BASELINE_OUTPUT:-$root/docs/evidence/B00/pi-baseline.md}
 
 if [ -z "$target" ]; then
@@ -13,6 +14,17 @@ if ! command -v ssh >/dev/null 2>&1; then
   echo 'BLOCKED: OpenSSH client is unavailable.' >&2
   exit 2
 fi
+if [ -n "$port" ]; then
+  case "$port" in
+    *[!0-9]*) echo 'BLOCKED: PI_SSH_PORT must be a number from 1 to 65535.' >&2; exit 2 ;;
+  esac
+  port=$(printf '%s' "$port" | sed 's/^0*//')
+  port=${port:-0}
+  if [ "${#port}" -gt 5 ] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+    echo 'BLOCKED: PI_SSH_PORT must be a number from 1 to 65535.' >&2
+    exit 2
+  fi
+fi
 if [ -e "$output" ]; then
   echo "Refusing to overwrite existing evidence: $output" >&2
   exit 2
@@ -21,7 +33,11 @@ mkdir -p "$(dirname -- "$output")"
 temporary=$(mktemp "$(dirname -- "$output")/.pi-baseline.XXXXXX")
 trap 'rm -f "$temporary"' EXIT HUP INT TERM
 
-ssh -o BatchMode=yes -o ConnectTimeout=8 "$target" sh -s >"$temporary" <<'REMOTE'
+set -- -o BatchMode=yes -o ConnectTimeout=8
+if [ -n "$port" ]; then
+  set -- "$@" -p "$port"
+fi
+ssh "$@" "$target" sh -s >"$temporary" <<'REMOTE'
 set -eu
 printf '# Raspberry Pi host baseline\n\n'
 printf '**Captured (UTC):** %s\n\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
