@@ -21,10 +21,10 @@
 **Impact:** Several planned B06/B08/B10–B13 acceptance cases are not met. No source or provider is available to validate the required retailer semantics.  
 **Boundary:** implement safe local-independent functionality where fully specified; leave source-dependent behavior disabled until approvals and product scope are supplied.
 
-### AUDIT-P1-02 — Independent reviewers and project-license decision are absent
-**Status:** BLOCKED. **Evidence:** no independent reviewer/acceptance tester or owner-selected repository license is recorded; `make license-report` reports first-party packages as Unknown. `modernc.org/mathutil` is scanner-Unknown but its module LICENSE was manually reviewed as BSD-3-Clause.  
-**Impact:** independent B00/B01–B12 acceptance and redistribution sign-off cannot be self-certified.  
-**Boundary:** obtain an owner license choice and independent reviewers for the exact candidate before distribution/release.
+### AUDIT-P1-02 — Independent review remains open
+**Status:** BLOCKED for independent review. The owner selected MIT on 2026-10-19; `LICENSE` records that choice, and the updated report recognizes first-party packages as MIT. `modernc.org/mathutil` remains scanner-Unknown and is manually verified as BSD-3-Clause in the notices.  
+**Impact:** independent B00/B01–B12 acceptance cannot be self-certified.  
+**Boundary:** appoint independent reviewers for the exact candidate before acceptance or release.
 
 ### AUDIT-P2-01 — Rendered and manual accessibility review remains unverified
 **Status:** NOT RUN. Source-level SSR semantics and route tests pass, but no browser-rendered narrow/wide inspection, keyboard/screen-reader walkthrough or independent UX review is recorded.  

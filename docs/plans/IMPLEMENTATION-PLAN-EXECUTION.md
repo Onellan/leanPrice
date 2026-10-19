@@ -12,13 +12,13 @@ A slice can be **implemented** with local code and deterministic evidence, but a
 - Technical roadmap relocated to `docs/plans/IMPLEMENTATION-PLAN.md`; this file is the execution plan. Supporting product and technical authorities remain in their existing folders.
 - Go 1.27.2 was installed in `/tmp/leanprice-toolchains/` after checksum verification. Docker/Buildx, Make and a Docker daemon are available. Node is not installed on the host; the pinned Tailwind build runs in the Docker builder.
 - Do not fetch retailer pages until a dated assessment and separate source-owner permission approve the exact source. Do not invent adapters or credentials. The five assessed candidates all remain disabled; Takealot is disallowed, Clicks/Makro/Checkers require further review and Dis-Chem requires written consent.
-- No Raspberry Pi target, production webhook, selected project license, appointed independent reviewers or external renderer host is available in this workspace.
+- The owner selected MIT for the project license; the repository records it in [`LICENSE`](../../LICENSE). No Raspberry Pi target, production webhook, appointed independent reviewers or external renderer host is available in this workspace.
 - Preserve existing CRLF-only edits in product/technical source documents. Do not add GitHub workflows. Network and webhook calls stay outside SQLite transactions.
 
 ## 3. Evidence and authority rules
 1. Load only the skills triggered by a slice. Source acquisition requires source feasibility and safe HTTP; domain changes require identity/pricing/domain guidance; SQLite/outbox work requires the integrity skill; UI work requires frontend design; release claims require Pi certification and local test-execution guidance.
 2. Evidence states are `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`. A passing unit test proves only its tested contract. Workstation containers do not certify ARM64 hardware or total Pi memory.
-3. Each batch record lists authority IDs, files/interfaces, negative cases, exact commands actually run, result, implementer/reviewer boundary, and remaining risk. Candidate code SHA for this checkpoint: `eece378259fe7e0f3f5cf0be8a9289ea2f7d090c`. Later documentation/evidence commits must not be mistaken for the code candidate.
+3. Each batch record lists authority IDs, files/interfaces, negative cases, exact commands actually run, result, implementer/reviewer boundary, and remaining risk. The earlier full benchmark/audit base is code SHA `eece378259fe7e0f3f5cf0be8a9289ea2f7d090c`; the latest implementation candidate is recorded in the validation section. Later documentation/evidence commits must not be mistaken for the code candidate.
 4. Independent review and acceptance evidence must come from people other than the implementer. This session has no delegated reviewer; it records implementer checks honestly and leaves independent gates open.
 5. Never change source approval, project license, deployment, household-account scope or remote-renderer policy by inference.
 
@@ -39,9 +39,9 @@ A slice can be **implemented** with local code and deterministic evidence, but a
 | B04 pricing/extraction/matching | Implemented for deterministic contracts; approved-source flow absent | Cents/rational units, offer eligibility, bounded parser/provenance, identity decisions and refresh service | Approved real source fixtures and independent parser/domain review remain blocked. |
 | B05 jobs/source governance | Implemented locally; operational certification open | Registry default-off, durable leases/queue, scheduler and memory governor | Source-enabled long run, load/performance study and Pi memory evidence remain blocked. |
 | B06 product workflows | Partial | Catalog/search, identity edit/audit, product detail, current-offer rules, observed range, watches, source/activity views, bounded pagination, audited source controls and app cgroup status | Approved-source URL add/preview/confirm and final responsive/browser/accessibility review remain open. |
-| B07 alerting | Partial; local episode/outbox, per-watch preferences and synthetic restart/re-arm journey implemented | Versioned absolute/relative rules, dedupe/outbox/retry, pause/resume, versioned edit, no-send offer preview, explicit test payload, and deterministic two-listing drop/recovery/re-arm/delivery flow across restart | Remaining AC-A01–A16 coverage, independent alert/security review, webhook endpoint configuration and real endpoint test remain open. |
+| B07 alerting | Local AC-A01–A16 deterministic coverage implemented; independent and external acceptance open | Versioned absolute/relative rules, dedupe/outbox/retry, pause/resume, versioned edit, no-send offer preview, explicit test payload, delivery status in Activity, stale-cache restart guard, concurrent episode dedupe and deterministic drop/recovery/re-arm flow | Source-specific AC-A06, independent alert/security/UX review and real webhook endpoint test remain open. |
 | B08 source adapters | Blocked | Source registry and assessment evidence only | No candidate is approved. Obtain written permission and dated technical approval before implementing or fetching. |
-| B09 R1 release | Local gate implemented; certification blocked | Release script runs local gates; ARM64 build/image and workstation smoke pass | Actual ARM64 Pi test/soak, approved-source E2E, independent reviews, license decision and release sign-off. |
+| B09 R1 release | Local gate implemented; certification blocked | Release script runs local gates; ARM64 build/image and workstation smoke pass; owner-selected MIT license recorded | Actual ARM64 Pi test/soak, approved-source E2E, independent reviews, complete redistribution evidence and release sign-off. |
 | B10 assisted discovery | Partial | Bounded provider registry, candidate cap/dedupe and unverified candidate semantics | No approved provider, opt-in settings, provider implementation or candidate-review UI. |
 | B11 promotions/history | Partial | Rational quantity/unit-cost domain, conditional offer fields, sampled 30-day range, bounded server-rendered chart and keyset-paginated history | Source-backed member/multibuy/coupon eligibility and added channels need approved evidence/product scope. |
 | B12 R2 certification | Blocked | No integrated R2 certification claim | Depends on complete B10/B11, Pi workload, source refresh and independent review. |
@@ -88,9 +88,9 @@ Batch evidence records are in [`docs/evidence/`](../evidence/). The implementer-
 ### B07 — Watches, episodes and delivery
 - `B07-S01`: immutable versioned watch rules support positive ZAR target, 1–99% relative drop, any/all combination, eligibility flags, exact/fresh offer checks and pause/resume.
 - `B07-S02`: durable alert episode/outbox, idempotency, bounded retries and a fixed test webhook payload use the separate notification target policy.
-- `B07-S03`: create/pause, immutable versioned edit, per-watch in-app/configured-webhook preference, no-send validated-offer preview, offers/deals/settings and test-notification action are implemented. Test delivery requires an explicit authenticated CSRF-protected POST; success uses a fixed `type=test` payload; errors do not reveal raw transport details. Legacy watches preserve the prior instance-wide destination.
-- `B07-S04`: `internal/integration/alert_journey_test.go` uses two synthetic exact listings to verify one qualifying drop, durable webhook outbox delivery, restart, ten unchanged-price rechecks without duplicates, recovery above target, a second drop/re-arm and a second delivery. No network call is made.
-- Focused watch, alert, UI, app, storage and integration checks pass. Remaining AC-A01–A16 cases, independent review and real endpoint test remain open.
+- `B07-S03`: create/pause, immutable versioned edit, per-watch in-app/configured-webhook preference, no-send validated-offer preview, offers/deals/settings and test-notification action are implemented. Test delivery requires an explicit authenticated CSRF-protected POST; success uses a fixed `type=test` payload; errors do not reveal raw transport details. Legacy watches preserve the prior instance-wide destination. The Activity page now exposes delivery status and redacted failure reasons.
+- `B07-S04`: `internal/integration/alert_journey_test.go` uses two synthetic exact listings to verify one qualifying drop, durable webhook outbox delivery, restart, ten unchanged-price rechecks without duplicates, recovery above target, a second drop/re-arm and a second delivery. A separate restart case rejects a 25-hour cached offer. No network call is made.
+- Deterministic AC-A01–A16 coverage is recorded in [B07 evidence](../evidence/B07/watch-and-notification-workflows.md). Focused storage/UI/integration and race suites pass. Source-specific AC-A06, independent review, target-Pi contention/restart evidence and real endpoint test remain open.
 
 ### B08–B14 — Conditional and external batches
 - B08 is blocked by written source authorization and feasibility. No adapter should be fabricated to create superficial coverage.
@@ -102,7 +102,7 @@ Batch evidence records are in [`docs/evidence/`](../evidence/). The implementer-
 - B14 has no renderer implementation. Feasibility beyond architecture requires a user-supplied host and policy/privacy/security approvals.
 
 ## 7. Validation record
-Validated code candidate: `eece378259fe7e0f3f5cf0be8a9289ea2f7d090c`. The full race suite and synthetic storage benchmarks passed on this exact candidate. Its release-check result is recorded below and in [B09 evidence](../evidence/B09/r1-local-gates.md).
+Latest implementation candidate: `d8c58f19eded6ed787996b5422c96beeebf29e15`. The release-check local gates and focused storage/integration race suite pass on this candidate; its release-check returns status 2 for external prerequisites. The earlier candidate `eece378259fe7e0f3f5cf0be8a9289ea2f7d090c` has the full-repository race result and synthetic storage benchmark. Results and limits are recorded in [B09 evidence](../evidence/B09/r1-local-gates.md) and [B02 SQLite evidence](../evidence/B02/sqlite-recovery.md).
 
 Local workstation gates actually executed during this work:
 - `go test -count=1 ./...` using `/tmp/leanprice-toolchains/go1.27.2/bin/go`: PASS (Go package suites, including UI, notify, storage, jobs, pricing, parser and identity).
@@ -113,10 +113,11 @@ Local workstation gates actually executed during this work:
 - `docker buildx build --platform linux/arm64 --load -t leanprice:local .`: PASS. ARM64 image is cross-built, not run on Pi.
 - Local AMD64 container smoke (separately built for workstation): liveness/readiness/setup and local asset responses pass under inspected Docker settings; not Pi or ARM64 runtime evidence.
 - `go test -run='^$' -bench='^BenchmarkSyntheticPiCatalogPages$' -benchtime=2s -count=2 ./internal/storage` with Go 1.27.2: PASS on workstation (exact workload and observed timing/allocation ranges are in [B02 evidence](../evidence/B02/sqlite-recovery.md)); this does not certify target capacity.
-- `go test -race -count=1 ./...`: PASS on code candidate `eece378259fe7e0f3f5cf0be8a9289ea2f7d090c`, including the synthetic alert restart/re-arm journey.
-- `make GO=/tmp/leanprice-toolchains/go1.27.2/bin/go release-check`: all local gates PASS on code candidate `eece378259fe7e0f3f5cf0be8a9289ea2f7d090c`; script then exits status 2 because the external gates below are missing.
+- `go test -race -count=1 ./...`: PASS on earlier code candidate `eece378259fe7e0f3f5cf0be8a9289ea2f7d090c`, including the synthetic alert restart/re-arm journey. Focused storage/integration race suites also PASS on `d8c58f19eded6ed787996b5422c96beeebf29e15`.
+- `make GO=/tmp/leanprice-toolchains/go1.27.2/bin/go release-check`: all configured local gates PASS on implementation candidate `d8c58f19eded6ed787996b5422c96beeebf29e15` with the MIT-bearing working tree; script exits status 2 for the external gates listed in B09 evidence.
 - `make pi-baseline`: exits status 2 / BLOCKED with no `PI_SSH_TARGET`.
-- `make license-report`: exits successfully but marks first-party packages and `modernc.org/mathutil` Unknown. The dependency module license was manually reviewed as BSD-3-Clause; the owner-selected project license remains absent.
+- At the earlier release-check, before the owner selected the project license, the report marked first-party packages and `modernc.org/mathutil` Unknown. The dependency module license was manually reviewed as BSD-3-Clause; the follow-up scan after adding MIT is recorded in B09 evidence.
+- After MIT was added, `make GO=/tmp/leanprice-toolchains/go1.27.2/bin/go license-report` passed and identified first-party packages as MIT. `modernc.org/mathutil` remains scanner-Unknown and manually verified as BSD-3-Clause; the remaining scanner limitations and release-check outcome are recorded in [B09 evidence](../evidence/B09/r1-local-gates.md).
 - `govulncheck`: zero vulnerabilities in imported symbols; one advisory is for an uncalled `golang.org/x/crypto/openpgp` package. This is recorded as an uncalled-module warning, not an imported-symbol finding.
 - No live retailer page was requested and no production webhook was configured.
 
@@ -126,7 +127,7 @@ Local workstation gates actually executed during this work:
 | Product/source approval | Product owner/legal approval for exact retailer/source/fields/rate and scope | Five assessments, zero approved sources; B08 blocked |
 | Target Pi | Access to target Pi and other workloads; OS/cgroup/Docker facts; 24h soak | Not present; B00-S03/B09/B12 blocked |
 | Independent review | Independent product, security, architecture, UX and acceptance reviewers on exact candidate SHA | Not appointed in this session; acceptance not self-certified |
-| Repository license | Owner selects project distribution license; dependency notices are not that decision | Open; release distribution gate blocked |
+| Repository license | Record owner-selected project license and verify dependency notices/report | MIT selected in `LICENSE`; `make license-report` recognizes first-party packages as MIT; `modernc.org/mathutil` scanner-Unknown is manually verified as BSD-3-Clause |
 | Search provider | Explicitly selected/authorized provider and quota/privacy decision | None configured; B10 provider path incomplete |
 | Remote renderer | Separate operator-owned host, allowed use, protocol and privacy approval | None supplied; B14 blocked/conditional |
 | Webhook | Operator destination and secret provisioning | No production target; local mock tests only |
@@ -139,7 +140,7 @@ These are explicit roadmap items, not implied passes:
 - Complete assisted-discovery provider configuration/review, history graph and any channel extensions only with explicit provider/product approval.
 - Run independent batch/final code, product, security, UX and acceptance reviews against a fixed SHA.
 - Run ARM64 Pi memory, recovery, performance, existing-workload and 24-hour soak gates; publish no R1/R2 claim before results.
-- Record the project license decision and complete redistribution notices before publishing an image/source release.
+- Re-run the MIT license report when dependencies change and include the current notices before publishing an image/source release.
 
 ## 10. Slice record template
 Use one record per slice in the corresponding batch evidence file:
@@ -158,4 +159,4 @@ Open blockers:
 ```
 
 ## 11. Current checkpoint
-All repository plans are under `docs/plans/`; product authority remains under `docs/product/` and technical contracts under `docs/technical/`. Local implementation spans foundation, storage, security, pricing, scheduling, catalog/watch workflows and reporting. Workstation code gates pass, including the local synthetic SQLite benchmark. The current checkpoint is **not a completed product plan or release**: approved-source workflows, source/provider-backed promotion and discovery work, retention/account/channel scope, independent reviews, project-license selection and Pi evidence remain outstanding. Keep all retailer sources disabled and continue only within those boundaries.
+All repository plans are under `docs/plans/`; product authority remains under `docs/product/` and technical contracts under `docs/technical/`. Local implementation spans foundation, storage, security, pricing, scheduling, catalog/watch workflows and reporting. Workstation code gates and the synthetic SQLite benchmark pass, and the owner-selected MIT license is recorded and recognized by the license report. The current checkpoint is **not a completed product plan or release**: approved-source workflows, source/provider-backed promotion and discovery work, retention/account/channel scope, independent reviews and Pi evidence remain outstanding. Keep all retailer sources disabled and continue only within those boundaries.

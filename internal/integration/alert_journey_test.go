@@ -106,6 +106,39 @@ func TestAlertJourneySurvivesRestartDedupesAndRearms(t *testing.T) {
 	}
 }
 
+func TestRestartDoesNotTreatOldCachedPriceAsFreshAlertEvidence(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "leanprice.sqlite")
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	store, err := storage.Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedJourneyCatalog(t, store, now)
+	target := int64(3000)
+	if err := store.CreateWatch(ctx, "watch-stale", "product-journey", "", true,
+		storage.WatchRule{TargetMinor: &target, ConditionOperator: "any", NotificationChannel: "webhook"}, now); err != nil {
+		t.Fatal(err)
+	}
+	persistJourneyOffer(t, store, "old-cached-offer", "listing-a", now.Add(-25*time.Hour), 2000)
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = storage.Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	engine := alerts.Engine{Repository: store, Now: func() time.Time { return now }}
+	summary, err := engine.Evaluate(ctx)
+	if err != nil || summary.Evaluated != 1 || summary.Created != 0 {
+		t.Fatalf("post-restart evaluation = %+v, %v; stale cached offer must not alert", summary, err)
+	}
+	if episodes, outbox := journeyCounts(t, store); episodes != 0 || outbox != 0 {
+		t.Fatalf("post-restart stale offer produced episodes=%d outbox=%d; want none", episodes, outbox)
+	}
+}
+
 func openJourneyStore(t *testing.T, path string) *storage.Store {
 	t.Helper()
 	store, err := storage.Open(context.Background(), path)

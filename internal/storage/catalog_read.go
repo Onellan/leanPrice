@@ -533,6 +533,11 @@ func (s *Store) ListActivity(ctx context.Context, limit int) ([]ActivityItem, er
 		UNION ALL
 		SELECT a.created_at,'alert',p.display_name,CASE WHEN a.closed_at IS NULL THEN 'active' ELSE 'recovered' END,a.reason_code
 			FROM alert_episodes a JOIN watches w ON w.id=a.watch_id JOIN canonical_products p ON p.id=w.canonical_product_id
+		UNION ALL
+		SELECT CASE WHEN d.delivered_at IS NOT NULL THEN d.delivered_at ELSE a.created_at END,'notification',p.display_name,d.status,
+			COALESCE(NULLIF(d.last_error_code,''),CASE WHEN d.last_status_code IS NOT NULL THEN 'HTTP '||d.last_status_code END,'')
+			FROM delivery_outbox d JOIN alert_episodes a ON a.id=d.alert_episode_id
+			JOIN watches w ON w.id=a.watch_id JOIN canonical_products p ON p.id=w.canonical_product_id
 	) ORDER BY at DESC,kind,subject LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("storage: list activity: %w", err)
@@ -574,6 +579,11 @@ func (s *Store) ListActivityPage(ctx context.Context, after *ActivityCursor, lim
 		UNION ALL
 		SELECT a.created_at,'alert:'||a.id,'alert',p.display_name,CASE WHEN a.closed_at IS NULL THEN 'active' ELSE 'recovered' END,a.reason_code
 			FROM alert_episodes a JOIN watches w ON w.id=a.watch_id JOIN canonical_products p ON p.id=w.canonical_product_id
+		UNION ALL
+		SELECT CASE WHEN d.delivered_at IS NOT NULL THEN d.delivered_at ELSE a.created_at END,'notification:'||d.id,'notification',p.display_name,d.status,
+			COALESCE(NULLIF(d.last_error_code,''),CASE WHEN d.last_status_code IS NOT NULL THEN 'HTTP '||d.last_status_code END,'')
+			FROM delivery_outbox d JOIN alert_episodes a ON a.id=d.alert_episode_id
+			JOIN watches w ON w.id=a.watch_id JOIN canonical_products p ON p.id=w.canonical_product_id
 	)`+where+` ORDER BY at DESC,event_key ASC LIMIT ?`, args...)
 	if err != nil {
 		return nil, false, fmt.Errorf("storage: list activity page: %w", err)

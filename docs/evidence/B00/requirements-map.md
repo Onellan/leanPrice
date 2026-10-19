@@ -84,7 +84,7 @@ This map assigns each stable requirement and acceptance case to its implementati
 - **Source policy:** B00-S02 assessments cover Takealot, Clicks, Makro, Checkers and Dis-Chem. Current terms or missing policy evidence block all five; no source has been approved. B08/live fetch work is blocked until policy and separate approval gates pass.
 - **Pi capacity:** no target Pi is attached to this workspace. AC-R and R1/R2 release certification remain blocked until B00-S03 and actual ARM64 workload evidence are available.
 - **Toolchain:** Go 1.27.2, Docker and Make are pinned/documented and local B01 checks pass; see `docs/evidence/B01/toolchain-and-foundation.md`.
-- **Project license:** repository license has not been selected. `make license-report` reports third-party licenses but marks leanPrice itself `Unknown`; obtain owner decision before treating redistribution checks as complete.
+- **Project license:** owner selected MIT on 2026-10-19 and the repository records it in [`LICENSE`](../../../LICENSE). `make license-report` now reports first-party packages as MIT; `modernc.org/mathutil` remains scanner-Unknown and is manually verified as BSD-3-Clause in the notices.
 - **Rendered UI inspection:** no local browser is available; SSR, assets, keyboard semantics and responsive source were inspected, but rendered screenshot/accessibility review remains an independent gate.
 - **Independent review:** no independent reviewer/tester identity is recorded. Implementer checks cannot close the review gates.
 - **Remote renderer:** no remote host, protocol credentials or source permission is supplied; B14 cannot progress beyond a bounded feasibility/design artifact without them.

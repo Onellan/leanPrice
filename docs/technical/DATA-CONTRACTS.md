@@ -340,7 +340,7 @@ HTML first. Application pages and mutations require a session; login, setup, hea
 | `/watches/{id}/edit` | GET/POST | yes+CSRF | Edit watch criteria and destination by appending an immutable rule version; stale updates conflict — implemented |
 | `/watches/{id}/active` | POST | yes+CSRF | Pause/resume a watch — implemented |
 | `/deals` | GET | yes | Fresh eligible ZAR public offers — implemented |
-| `/activity` | GET | yes | Bounded keyset-paginated activity view — implemented |
+| `/activity` | GET | yes | Bounded keyset-paginated activity view covering checks, source events, alert episodes and notification delivery status with redacted failure details — implemented |
 | `/sources` | GET | yes | Assessment, capabilities, last success/failure, retry time, parser version and guarded operator control — implemented; approvals remain external |
 | `/sources/{id}/enabled` | POST | yes+CSRF | Pause or enable an already approved source with source-event and admin-audit records; cannot self-approve — implemented |
 | `/settings` | GET | yes | Password change, live app-cgroup resource panel and local operation guidance — implemented; cgroup view is not whole-host Pi certification |

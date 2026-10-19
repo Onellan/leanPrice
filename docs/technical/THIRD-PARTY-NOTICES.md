@@ -1,6 +1,6 @@
 # Third-party notices
 
-The application embeds HTMX and generated Tailwind CSS assets. Their full license texts are included beside the assets under `web/static/` and are embedded in the executable.
+The original leanPrice code is distributed under the MIT License in [`LICENSE`](../../LICENSE). The application embeds HTMX and generated Tailwind CSS assets. Their full license texts are included beside the assets under `web/static/` and are embedded in the executable.
 
 | Component | Pin | Use | License notice |
 |---|---:|---|---|
@@ -20,4 +20,4 @@ The application embeds HTMX and generated Tailwind CSS assets. Their full licens
 | `modernc.org/memory` | v1.12.1 | SQLite driver support | BSD-3-Clause |
 | `modernc.org/sqlite` | v1.60.1 | SQLite driver | BSD-3-Clause |
 
-The Go module dependency report is generated with `make license-report`. Scanner output currently reports `modernc.org/mathutil` as Unknown; its module `LICENSE` was manually inspected and is BSD-3-Clause. The repository license for leanPrice itself has not been selected; `go-licenses` therefore reports first-party packages as Unknown. Do not infer a project license from dependency licenses or the product's open-source-first positioning.
+The Go module dependency report is generated with `make license-report`. First-party packages are reported as MIT from the repository `LICENSE`. `modernc.org/mathutil` remains scanner-Unknown; its module `LICENSE` was manually inspected and is BSD-3-Clause. Preserve separate notices for every dependency.

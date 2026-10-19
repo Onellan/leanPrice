@@ -6,7 +6,7 @@
 **Execution plan:** [implementation sequence and evidence](IMPLEMENTATION-PLAN-EXECUTION.md)  
 **Implementation environment:** Go + Chi + `html/template` + HTMX + Tailwind CSS + SQLite, one Docker/ARM64 container on Raspberry Pi 4B. No local browser, separate database or local SearXNG.
 
-**Current implementation pins:** Go 1.27.2, Chi 5.5.0, HTMX 2.0.11 and Tailwind CSS/CLI 4.3.0. SQLite is at schema version 4. The repository has no selected project license; see the execution ledger before redistribution.
+**Current implementation pins:** Go 1.27.2, Chi 5.5.0, HTMX 2.0.11 and Tailwind CSS/CLI 4.3.0. SQLite is at schema version 4. The project license is MIT; see [`LICENSE`](../../LICENSE) and the execution ledger for current distribution evidence.
 
 # A. Executive delivery strategy
 

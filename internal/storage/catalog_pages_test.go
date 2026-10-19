@@ -85,6 +85,36 @@ func TestListActivityPageUsesStableKeysetAtEqualTimes(t *testing.T) {
 	}
 }
 
+func TestActivityPageShowsRedactedNotificationDeliveryFailure(t *testing.T) {
+	ctx := context.Background()
+	store, now, alert := seedAlertEpisodeScenario(t)
+	if _, created, err := store.CreateAlertEpisode(ctx, alert); err != nil || !created {
+		t.Fatalf("CreateAlertEpisode() = created %v, error %v", created, err)
+	}
+	delivery, err := store.ClaimDelivery(ctx, "notifier", now, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.FinishDelivery(ctx, delivery.ID, "notifier", DeliveryResult{
+		Status: "dead", HTTPStatus: 400, LastErrorCode: "destination_rejected",
+	}, now); err != nil {
+		t.Fatal(err)
+	}
+	items, _, err := store.ListActivityPage(ctx, nil, InteractivePageSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range items {
+		if item.Kind == "notification" {
+			if item.Status != "dead" || item.Detail != "destination_rejected" || item.Subject == "" {
+				t.Fatalf("notification activity = %+v; want terminal status and redacted reason", item)
+			}
+			return
+		}
+	}
+	t.Fatalf("activity page omitted notification delivery failure: %+v", items)
+}
+
 func TestSetSourceEnabledRequiresApprovalAndAuditsOperator(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t)

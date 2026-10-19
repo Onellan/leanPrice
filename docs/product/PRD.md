@@ -55,7 +55,7 @@ Consumers must check multiple retailer websites to discover product availability
 - **Retailer candidates (not yet verified):** Clicks, Dis-Chem, Checkers, Pick n Pay, Shoprite, Makro, Game, Takealot. **A name on this list is not an implemented or approved adapter.** Each requires a legal/technical feasibility assessment.
 - **Deployment:** single household/self-hosted instance, authenticated admin, optional read-only local viewers later.
 - **Cost:** open-source-first, no subscription needed for manual URL watching. Optional third-party discovery API may have a separate charge.
-- **Open-source strategy:** original implementation in this repository; avoid transplanting non-permissively licensed PriceBuddy code or branding.
+- **Open-source strategy:** original implementation in this repository, distributed under the MIT License in [`LICENSE`](../../LICENSE); avoid transplanting non-permissively licensed PriceBuddy code or branding.
 
 ## 5. Product boundaries and release slices
 ### MVP (R1) — trustworthy watch list

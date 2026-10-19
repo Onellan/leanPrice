@@ -137,7 +137,7 @@
     {{if gt (len .Activity) 0}}
     <div class="table-wrap"><table class="data-table"><caption class="visually-hidden">Recent application activity</caption><thead><tr><th scope="col">Time</th><th scope="col">Type</th><th scope="col">Subject</th><th scope="col">Status</th><th scope="col">Detail</th></tr></thead><tbody>{{range .Activity}}<tr><td>{{timestamp .At}}</td><td>{{.Kind}}</td><th scope="row">{{.Subject}}</th><td>{{.Status}}</td><td>{{.Detail}}</td></tr>{{end}}</tbody></table></div>
     {{if .HasNextPage}}<nav class="page-pagination" aria-label="Activity pages"><a href="{{.NextPageURL}}">Older activity</a></nav>{{end}}
-    {{else}}<section class="empty-state"><div class="empty-mark" aria-hidden="true">lp</div><div><h2>No activity yet</h2><p>Checks, source status changes and alert episodes will appear here.</p></div></section>{{end}}
+    {{else}}<section class="empty-state"><div class="empty-mark" aria-hidden="true">lp</div><div><h2>No activity yet</h2><p>Checks, source status changes, alert episodes and notification delivery outcomes will appear here.</p></div></section>{{end}}
   {{end}}
 
   {{if eq .Path "/settings"}}

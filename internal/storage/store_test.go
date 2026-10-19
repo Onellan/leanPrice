@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -968,6 +969,153 @@ func TestWatchRuleUpdatesAppendVersionAndRejectStaleEdits(t *testing.T) {
 	if current != 2 || versions != 2 {
 		t.Fatalf("current rule=%d, versions=%d; want 2 and 2", current, versions)
 	}
+}
+
+func TestAlertCreationRejectsPausedAndStaleWatchEvidence(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		change func(*testing.T, *Store, AlertDelivery, time.Time)
+	}{
+		{
+			name: "paused source",
+			change: func(t *testing.T, store *Store, _ AlertDelivery, _ time.Time) {
+				if _, err := store.db.ExecContext(context.Background(), "UPDATE sources SET enabled=0 WHERE id='source-alert'"); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "paused watch",
+			change: func(t *testing.T, store *Store, alert AlertDelivery, _ time.Time) {
+				if err := store.SetWatchActive(context.Background(), alert.WatchID, false); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "superseded rule version",
+			change: func(t *testing.T, store *Store, alert AlertDelivery, now time.Time) {
+				nextTarget := int64(900)
+				if version, err := store.UpdateWatchRule(context.Background(), alert.WatchID, 1, WatchRule{TargetMinor: &nextTarget}, now.Add(time.Second)); err != nil || version != 2 {
+					t.Fatalf("UpdateWatchRule() = %d, %v", version, err)
+				}
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store, now, alert := seedAlertEpisodeScenario(t)
+			test.change(t, store, alert, now)
+			if _, _, err := store.CreateAlertEpisode(context.Background(), alert); err == nil {
+				t.Fatal("CreateAlertEpisode() accepted evidence after its source/watch/rule was paused or superseded")
+			}
+		})
+	}
+}
+
+func TestConcurrentAlertEvaluationsCreateOneEpisodeAndOutboxRow(t *testing.T) {
+	store, _, alert := seedAlertEpisodeScenario(t)
+	const workers = 12
+	type outcome struct {
+		id      string
+		created bool
+		err     error
+	}
+	results := make(chan outcome, workers)
+	var group sync.WaitGroup
+	for index := 0; index < workers; index++ {
+		group.Add(1)
+		go func(index int) {
+			defer group.Done()
+			candidate := alert
+			candidate.EpisodeID = fmt.Sprintf("episode-alert-%02d", index)
+			candidate.IdempotencyKey = "episode:" + candidate.EpisodeID
+			id, created, err := store.CreateAlertEpisode(context.Background(), candidate)
+			results <- outcome{id: id, created: created, err: err}
+		}(index)
+	}
+	group.Wait()
+	close(results)
+	createdCount := 0
+	winner := ""
+	for result := range results {
+		if result.err != nil {
+			t.Fatalf("concurrent CreateAlertEpisode(): %v", result.err)
+		}
+		if winner == "" {
+			winner = result.id
+		}
+		if result.id != winner {
+			t.Fatalf("concurrent evaluations returned different episodes %q and %q", winner, result.id)
+		}
+		if result.created {
+			createdCount++
+		}
+	}
+	var episodes, outbox int
+	if err := store.db.QueryRowContext(context.Background(), "SELECT count(*) FROM alert_episodes").Scan(&episodes); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.db.QueryRowContext(context.Background(), "SELECT count(*) FROM delivery_outbox").Scan(&outbox); err != nil {
+		t.Fatal(err)
+	}
+	if createdCount != 1 || episodes != 1 || outbox != 1 {
+		t.Fatalf("concurrent result created=%d episodes=%d outbox=%d; want one each", createdCount, episodes, outbox)
+	}
+}
+
+func TestDeliveryOutboxDeadLettersAfterFiveFailedAttempts(t *testing.T) {
+	store, now, alert := seedAlertEpisodeScenario(t)
+	if _, created, err := store.CreateAlertEpisode(context.Background(), alert); err != nil || !created {
+		t.Fatalf("CreateAlertEpisode() = created %v, error %v", created, err)
+	}
+	for attempt := 1; attempt <= 5; attempt++ {
+		delivery, err := store.ClaimDelivery(context.Background(), "notifier", now, time.Minute)
+		if err != nil || delivery.AttemptCount != attempt {
+			t.Fatalf("ClaimDelivery() attempt %d = %+v, %v", attempt, delivery, err)
+		}
+		err = store.FinishDelivery(context.Background(), delivery.ID, "notifier", DeliveryResult{
+			Status: "retry_at", NextAttemptAt: now.Add(5 * time.Second).UnixMilli(), LastErrorCode: "delivery_failed",
+		}, now)
+		if err != nil {
+			t.Fatalf("FinishDelivery() attempt %d: %v", attempt, err)
+		}
+		now = now.Add(6 * time.Second)
+	}
+	var status string
+	var attempts int
+	if err := store.db.QueryRowContext(context.Background(), "SELECT status,attempt_count FROM delivery_outbox WHERE alert_episode_id=?", alert.EpisodeID).Scan(&status, &attempts); err != nil {
+		t.Fatal(err)
+	}
+	if status != "dead" || attempts != 5 {
+		t.Fatalf("outbox after repeated failures = status %q attempts %d; want dead after five", status, attempts)
+	}
+	if _, err := store.ClaimDelivery(context.Background(), "notifier", now, time.Minute); !errors.Is(err, ErrNoDelivery) {
+		t.Fatalf("ClaimDelivery() after terminal failure = %v, want ErrNoDelivery", err)
+	}
+}
+
+func seedAlertEpisodeScenario(t *testing.T) (*Store, time.Time, AlertDelivery) {
+	t.Helper()
+	ctx := context.Background()
+	store := openTestStore(t)
+	seedExactListing(t, store, "source-alert", "product-alert", "listing-alert")
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	target := int64(1000)
+	if err := store.CreateWatch(ctx, "watch-alert", "product-alert", "", true,
+		WatchRule{TargetMinor: &target, ConditionOperator: "any", NotificationChannel: "webhook"}, now); err != nil {
+		t.Fatal(err)
+	}
+	observation := Observation{ID: "obs-alert", ListingID: "listing-alert", ObservedAt: now.UnixMilli(), FetchStatus: "success",
+		ObservedStock: "in_stock", SourceURL: "https://shop.example/item/1", ValidationState: "valid"}
+	offer := ObservedOffer{ID: "offer-alert", Kind: "standard", Currency: "ZAR", CurrencyScale: 2, AmountMinor: 900,
+		MinimumQty: 1, Evidence: "fixture:price", Eligibility: "public"}
+	if err := store.PersistObservation(ctx, observation, []ObservedOffer{offer}); err != nil {
+		t.Fatal(err)
+	}
+	alert := AlertDelivery{EpisodeID: "episode-alert", WatchID: "watch-alert", RuleVersion: 1, OfferID: "offer-alert",
+		EpisodeKey: "watch:watch-alert:listing-alert:v1", ReasonCode: "threshold_met", DestinationKey: "webhook",
+		IdempotencyKey: "episode:episode-alert", CreatedAt: now.UnixMilli(), NextAttemptAt: now.UnixMilli(), MaxAge: time.Hour}
+	return store, now, alert
 }
 
 func openTestStore(t *testing.T) *Store {
